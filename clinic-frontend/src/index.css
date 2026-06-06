@@ -137,3 +137,26 @@ h1, h2, h3 {
   background-position: right 12px center;
   padding-right: 36px;
 }
+.form-grid {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-section {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  padding: 0;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  margin-top: 2px;
+}
