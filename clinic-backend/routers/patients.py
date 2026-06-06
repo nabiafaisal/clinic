@@ -3,10 +3,6 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 from db import get_conn
-import os
-import uuid
-import shutil
-from fastapi import UploadFile, File
 from auth_utils import get_current_user, require_role
 import csv
 import io
@@ -35,13 +31,13 @@ class PatientCreate(BaseModel):
     remarks:             Optional[str] = None
 
 class PatientUpdate(PatientCreate):
-    name: Optional[str] = None  # all fields optional for update
+    name: Optional[str] = None
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/")
 def list_patients(
-    search: Optional[str] = Query(None, description="Search by name or mobile"),
+    search: Optional[str] = Query(None),
     skip:   int = 0,
     limit:  int = 50,
     user=Security(get_current_user)
@@ -74,85 +70,7 @@ def list_patients(
     conn.close()
     return {"total": total, "patients": rows}
 
-@router.get("/{patient_id}")
-def get_patient(patient_id: int, user=Security(get_current_user)):
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return row
-
-@router.post("/", status_code=201)
-def create_patient(body: PatientCreate, user=Security(require_role("doctor", "reception"))):
-    conn = get_conn()
-    cur  = conn.cursor()
-
-    consent_dt = "NOW()" if body.consent_taken else None
-
-    cur.execute("""
-        INSERT INTO patients
-            (name, fh_name, age, marital_status, mobile_no, city, country,
-             patient_type, consent_taken, consent_datetime,
-             date_of_first_visit, know_patient_of, history, temperament,
-             first_subscription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        RETURNING *
-    """, (
-        body.name, body.fh_name, body.age, body.marital_status, body.mobile_no,
-        body.city, body.country, body.patient_type, body.consent_taken,
-        "NOW()" if body.consent_taken else None,
-        body.date_of_first_visit, body.know_patient_of, body.history,
-        body.temperament, body.first_subscription, body.diagnosis,
-        body.remarks, user["sub"]
-    ))
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
-    return row
-
-@router.patch("/{patient_id}")
-def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("doctor", "reception"))):
-    conn = get_conn()
-    cur  = conn.cursor()
-
-    # Only update fields that were actually sent
-    fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
-    if not fields:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
-    set_clause = ", ".join(f"{k} = %s" for k in fields)
-    set_clause += ", updated_by = %s, updated_at = NOW()"
-    values = list(fields.values()) + [user["sub"], patient_id]
-
-    cur.execute(f"UPDATE patients SET {set_clause} WHERE id = %s RETURNING *", values)
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return row
-
-@router.get("/{patient_id}/visits")
-def get_patient_visits(patient_id: int, user=Security(get_current_user)):
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("""
-        SELECT * FROM visits
-        WHERE patient_id = %s AND is_deleted = FALSE
-        ORDER BY visit_date DESC
-    """, (patient_id,))
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
-    return rows
-import csv, io
-from fastapi.responses import StreamingResponse
+# ── Export (must be before /{patient_id}) ─────────────────────────────────────
 
 @router.get("/export")
 def export_patients(user=Security(get_current_user)):
@@ -183,67 +101,76 @@ def export_patients(user=Security(get_current_user)):
         media_type='text/csv',
         headers={'Content-Disposition': 'attachment; filename="patients_export.csv"'}
     )
-@router.post("/{patient_id}/upload", status_code=201)
-async def upload_patient_file(
-    patient_id: int,
-    file: UploadFile = File(...),
-    user=Security(require_role("doctor", "reception"))
-):
-    allowed_types = {"application/pdf", "image/jpeg", "image/png", "image/jpg", "image/webp"}
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Only PDF and images allowed")
 
+# ── Single patient (after /export) ───────────────────────────────────────────
+
+@router.get("/{patient_id}")
+def get_patient(patient_id: int, user=Security(get_current_user)):
     conn = get_conn()
     cur  = conn.cursor()
-    cur.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
-    if not cur.fetchone():
+    cur.execute("SELECT * FROM patients WHERE id = %s", (patient_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
+    return row
 
-    os.makedirs("uploads", exist_ok=True)
-    ext      = os.path.splitext(file.filename)[1].lower()
-    filename = f"pat_{patient_id}_{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join("uploads", filename)
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    file_type = "pdf" if file.content_type == "application/pdf" else "image"
-    file_url  = f"/uploads/{filename}"
-
+@router.post("/", status_code=201)
+def create_patient(body: PatientCreate, user=Security(require_role("doctor", "reception"))):
+    conn = get_conn()
+    cur  = conn.cursor()
     cur.execute("""
-        INSERT INTO patient_uploads (patient_id, file_url, file_type, uploaded_by)
-        VALUES (%s, %s, %s, %s) RETURNING *
-    """, (patient_id, file_url, file_type, user["sub"]))
+        INSERT INTO patients
+            (name, fh_name, age, marital_status, mobile_no, city, country,
+             patient_type, consent_taken, consent_datetime,
+             date_of_first_visit, know_patient_of, history, temperament,
+             first_subscription, diagnosis, remarks, created_by)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        RETURNING *
+    """, (
+        body.name, body.fh_name, body.age, body.marital_status, body.mobile_no,
+        body.city, body.country, body.patient_type, body.consent_taken,
+        "NOW()" if body.consent_taken else None,
+        body.date_of_first_visit, body.know_patient_of, body.history,
+        body.temperament, body.first_subscription, body.diagnosis,
+        body.remarks, user["sub"]
+    ))
     row = cur.fetchone()
     conn.commit()
     cur.close()
     conn.close()
     return row
 
-
-@router.get("/{patient_id}/uploads")
-def get_patient_uploads(patient_id: int, user=Security(get_current_user)):
+@router.patch("/{patient_id}")
+def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("doctor", "reception"))):
     conn = get_conn()
     cur  = conn.cursor()
-    cur.execute("SELECT * FROM patient_uploads WHERE patient_id = %s ORDER BY uploaded_at", (patient_id,))
+    fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    set_clause = ", ".join(f"{k} = %s" for k in fields)
+    set_clause += ", updated_by = %s, updated_at = NOW()"
+    values = list(fields.values()) + [user["sub"], patient_id]
+    cur.execute(f"UPDATE patients SET {set_clause} WHERE id = %s RETURNING *", values)
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return row
+
+@router.get("/{patient_id}/visits")
+def get_patient_visits(patient_id: int, user=Security(get_current_user)):
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT * FROM visits
+        WHERE patient_id = %s AND is_deleted = FALSE
+        ORDER BY visit_date DESC
+    """, (patient_id,))
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return rows
-
-
-@router.delete("/uploads/{upload_id}")
-def delete_patient_upload(upload_id: int, user=Security(require_role("doctor", "reception"))):
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("SELECT file_url FROM patient_uploads WHERE id = %s", (upload_id,))
-    row = cur.fetchone()
-    if not row:
-        raise HTTPException(status_code=404, detail="Upload not found")
-    filepath = row["file_url"].lstrip("/")
-    if os.path.exists(filepath):
-        os.remove(filepath)
-    cur.execute("DELETE FROM patient_uploads WHERE id = %s", (upload_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-    return {"message": "Deleted"}
