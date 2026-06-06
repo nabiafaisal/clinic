@@ -160,3 +160,30 @@ h1, h2, h3 {
 .form-textarea {
   margin-top: 2px;
 }
+.edit-form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.edit-form-col {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.edit-form-col + .edit-form-col {
+  border-left: 1px solid var(--cream-dark);
+}
+
+.edit-form-section-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-lite);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cream-dark);
+  margin-bottom: 4px;
+}
