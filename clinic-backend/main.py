@@ -32,7 +32,3 @@ app.include_router(visits.router,   prefix="/visits",   tags=["Visits"])
 @app.get("/")
 def root():
     return {"status": "ok", "clinic": "Dr. Arshad Mahmood Clinic"}
-allow_origins=[
-    "http://localhost:3000",
-    "https://your-deployed-frontend-url.vercel.app"
-],
