@@ -59,7 +59,6 @@ export default function Dashboard() {
   }, []);
 
   const greeting = () => {
-    const h = new Date().getHours();
     return 'Salam';
   };
 
