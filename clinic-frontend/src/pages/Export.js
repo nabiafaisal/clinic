@@ -6,30 +6,13 @@ export default function Export() {
   const [loading, setLoading] = useState(false);
 
   const downloadExcel = async () => {
-    const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
     setLoading(true);
-
-    if (isMock) {
-      // Mock CSV download
-      const rows = [
-        ['ID', 'Name', 'F/H Name', 'Age', 'Mobile', 'Type', 'First Visit'],
-        ['1001', 'Muhammad Anwar', 'Ghulam Hussain', '45', '03001234567', 'in-clinic', '2020-03-15'],
-        ['1002', 'Fatima Bibi', 'Abdul Rehman', '32', '03211234567', 'in-clinic', '2019-07-22'],
-        ['1003', 'Khalid Mehmood', 'Mehmood Khan', '58', '', 'online', '2021-01-10'],
-      ];
-      const csv = rows.map(r => r.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'patients_export.csv';
-      a.click();
-      setLoading(false);
-      return;
-    }
-
     try {
-      const res = await api.get('/patients/export', { responseType: 'blob' });
+      const token = localStorage.getItem('clinic_token');
+      const res = await api.get('/patients/export', {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${token}` }
+      });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
