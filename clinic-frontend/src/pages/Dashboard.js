@@ -17,7 +17,7 @@ export default function Dashboard() {
     const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
 
     if (isMock) {
-      setStats({ total: 3228, thisYearVisits: 312, thisMonthVisits: 28, latestYear: 2025 });
+      setStats({ total: 3228, thisYearVisits: 312, thisMonthVisits: 28, todayVisits: 5 });
       setRecentVisits([
         { id: 1, patient_id: 1, patient_name: 'Muhammad Anwar', symptoms: 'Imp.', main_remedy: 'Sulphur 200', visit_date: new Date().toISOString(), visit_mode: 'physical' },
         { id: 2, patient_id: 2, patient_name: 'Fatima Bibi', symptoms: 'Headache, fever', main_remedy: 'Bryonia 30', visit_date: new Date().toISOString(), visit_mode: 'physical' },
@@ -27,32 +27,33 @@ export default function Dashboard() {
       return;
     }
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const thisMonth = new Date().getMonth() + 1;
+    const thisYear  = new Date().getFullYear();
+
     Promise.all([
       api.get('/patients/?limit=1').catch(() => ({ data: { total: 0 } })),
       api.get('/visits/?limit=8').catch(() => ({ data: [] })),
       api.get('/visits/diary-summary').catch(() => ({ data: [] })),
-    ]).then(([patientsRes, visitsRes, summaryRes]) => {
-      const total = patientsRes.data.total || 0;
-      const visits = Array.isArray(visitsRes.data) ? visitsRes.data : [];
+      api.get(`/visits/?date_from=${todayStr}&date_to=${todayStr}&limit=1`).catch(() => ({ data: [] })),
+    ]).then(([patientsRes, visitsRes, summaryRes, todayRes]) => {
+      const total   = patientsRes.data.total || 0;
+      const visits  = Array.isArray(visitsRes.data) ? visitsRes.data : [];
       const summary = Array.isArray(summaryRes.data) ? summaryRes.data : [];
 
-      // Use the most recent year that actually has data, not the current calendar year
-      const latestYear = summary.length > 0
-        ? Math.max(...summary.map(r => r.year))
-        : new Date().getFullYear();
-
-      const thisCalendarMonth = new Date().getMonth() + 1;
-      const thisCalendarYear  = new Date().getFullYear();
-
       const thisYearVisits = summary
-        .filter(r => r.year === latestYear)
+        .filter(r => r.year === thisYear)
         .reduce((a, b) => a + (parseInt(b.total) || 0), 0);
 
       const thisMonthVisits = summary.find(
-        r => r.year === thisCalendarYear && r.month === thisCalendarMonth
+        r => r.year === thisYear && r.month === thisMonth
       )?.total || 0;
 
-      setStats({ total, thisYearVisits, thisMonthVisits, latestYear });
+      // today's visits — backend returns array, check if it has a total or just count the rows
+      const todayData = todayRes.data;
+      const todayVisits = Array.isArray(todayData) ? todayData.length : 0;
+
+      setStats({ total, thisYearVisits, thisMonthVisits, todayVisits });
       setRecentVisits(visits.slice(0, 6));
       setLoading(false);
     });
@@ -65,6 +66,9 @@ export default function Dashboard() {
   const today = new Date().toLocaleDateString('en-PK', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
+
+  const thisYear  = new Date().getFullYear();
+  const thisMonth = new Date().toLocaleDateString('en-PK', { month: 'long' });
 
   if (loading) return (
     <div className="loading-center">
@@ -94,16 +98,22 @@ export default function Dashboard() {
           color="forest"
         />
         <StatCard
-          label={`Visits in ${stats?.latestYear || '—'}`}
-          value={stats?.thisYearVisits?.toLocaleString() || '—'}
+          label={`Visits in ${thisYear}`}
+          value={stats?.thisYearVisits > 0 ? stats.thisYearVisits.toLocaleString() : '—'}
           icon={<TrendingUp size={18} />}
           color="sage"
         />
         <StatCard
-          label="Visits This Month"
+          label={`Visits in ${thisMonth}`}
           value={stats?.thisMonthVisits > 0 ? stats.thisMonthVisits.toLocaleString() : '—'}
           icon={<Calendar size={18} />}
           color="amber"
+        />
+        <StatCard
+          label="Visits Today"
+          value={stats?.todayVisits > 0 ? stats.todayVisits.toLocaleString() : '—'}
+          icon={<Calendar size={18} />}
+          color="forest"
         />
       </div>
 
