@@ -12,7 +12,7 @@ export default function Diary() {
   const [loading, setLoading] = useState(true);
   const today = new Date().toISOString().slice(0, 10);
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState(today);
+  const [dateTo, setDateTo] = useState('');
   const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
   const [tab, setTab] = useState('diary'); // 'diary' | 'summary'
   const [summary, setSummary] = useState([]);
