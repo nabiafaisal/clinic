@@ -12,7 +12,7 @@ import EditPatient from './pages/EditPatient';
 import EditVisit from './pages/EditVisit';
 import PrintPrescription from './pages/PrintPrescription';
 import Diary from './pages/Diary';
-import Export from './pages/Export;
+import Export from './pages/Export';
 import ManageUsers from './pages/ManageUsers';
 
 function PrivateRoute({ children }) {
@@ -37,7 +37,7 @@ export default function App() {
             <Route path="visits/:visitId/edit" element={<EditVisit />} />
             <Route path="diary" element={<Diary />} />
             <Route path="export" element={<Export />} />
-  <Route path="users" element={<ManageUsers />} />
+            <Route path="users" element={<ManageUsers />} />
           </Route>
         </Routes>
       </BrowserRouter>
