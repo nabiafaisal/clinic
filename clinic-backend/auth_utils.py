@@ -55,19 +55,15 @@ def send_otp_email(to_email: str, otp: str, user_name: str = ""):
     <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; background: #f9f9f7; border-radius: 12px;">
       <h2 style="color: #2d6a4f; margin-bottom: 4px;">Dr. Arshad Mahmood Clinic</h2>
       <p style="color: #666; font-size: 13px; margin-bottom: 28px;">Patient Record Management System</p>
-
       <p style="color: #333; font-size: 15px;">Hello{' ' + user_name if user_name else ''},</p>
       <p style="color: #333; font-size: 15px;">Your one-time login code is:</p>
-
       <div style="background: #fff; border: 2px solid #2d6a4f; border-radius: 10px; padding: 20px; text-align: center; margin: 24px 0;">
         <span style="font-size: 40px; font-weight: 700; letter-spacing: 10px; color: #1b4332; font-family: monospace;">
           {otp}
         </span>
       </div>
-
       <p style="color: #888; font-size: 13px;">This code expires in <strong>10 minutes</strong>.</p>
       <p style="color: #888; font-size: 13px;">If you did not request this, please ignore this email.</p>
-
       <hr style="border: none; border-top: 1px solid #e5e2d9; margin: 24px 0;" />
       <p style="color: #aaa; font-size: 11px; text-align: center;">
         Dr. Arshad Mahmood Clinic · Lahore, Pakistan
@@ -79,10 +75,10 @@ def send_otp_email(to_email: str, otp: str, user_name: str = ""):
 
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
-    server.ehlo()
-    server.starttls()
-    server.login(SMTP_EMAIL, SMTP_PASSWORD)
-    server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+            server.ehlo()
+            server.starttls()
+            server.login(SMTP_EMAIL, SMTP_PASSWORD)
+            server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
 
