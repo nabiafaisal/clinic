@@ -4,7 +4,7 @@ import api from '../utils/api';
 import { Search, UserPlus, ChevronLeft, ChevronRight, Loader2, User } from 'lucide-react';
 import './Patients.css';
 import './Dashboard.css';
-
+import { useAuth } from '../context/AuthContext';
 const LIMIT = 30;
 
 export default function Patients() {
@@ -14,7 +14,7 @@ export default function Patients() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const [page, setPage] = useState(0);
-
+  const { user } = useAuth();
   const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
 
 const fetchPatients = useCallback(async (q, pg) => {
@@ -63,9 +63,11 @@ useEffect(() => { fetchPatients(search, page); }, [page]);
           <h1 className="page-title">Patients</h1>
           <p className="page-subtitle">{total.toLocaleString()} records</p>
         </div>
-        <Link to="/patients/new" className="btn btn--sage">
-          <UserPlus size={15} /> New Patient
-        </Link>
+        {(user?.role === 'superadmin' || user?.role === 'admin') && (
+  <Link to="/patients/new" className="btn btn--sage btn--sm">
+    <UserPlus size={14} /> New Patient
+  </Link>
+)}
       </div>
 
       {/* Search */}
