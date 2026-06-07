@@ -1,41 +1,54 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
-import { ArrowLeft, Loader2, CheckCircle, Paperclip, X } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
 import './Dashboard.css';
 import './Login.css';
 
 const MARITAL_OPTIONS = ['Married', 'Single', 'Widow', 'Widower', 'Divorced', 'Child', 'Infant'];
 const TEMPERAMENT_OPTIONS = ['Sanguine', 'Phlegmatic', 'Choleric', 'Melancholic'];
+const COUNTRY_CODES = [
+  ['+92',  '🇵🇰 +92 Pakistan'],
+  ['+1',   '🇺🇸 +1 USA/Canada'],
+  ['+44',  '🇬🇧 +44 UK'],
+  ['+971', '🇦🇪 +971 UAE'],
+  ['+966', '🇸🇦 +966 Saudi Arabia'],
+  ['+974', '🇶🇦 +974 Qatar'],
+  ['+965', '🇰🇼 +965 Kuwait'],
+  ['+968', '🇴🇲 +968 Oman'],
+  ['+973', '🇧🇭 +973 Bahrain'],
+  ['+93',  '🇦🇫 +93 Afghanistan'],
+  ['+91',  '🇮🇳 +91 India'],
+  ['+880', '🇧🇩 +880 Bangladesh'],
+  ['+90',  '🇹🇷 +90 Turkey'],
+  ['+20',  '🇪🇬 +20 Egypt'],
+  ['+49',  '🇩🇪 +49 Germany'],
+  ['+33',  '🇫🇷 +33 France'],
+  ['+61',  '🇦🇺 +61 Australia'],
+];
 
 export default function NewPatient() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: '', fh_name: '', age: '', marital_status: '',
-    mobile_no: '', city: '', country: 'Pakistan',
+    name: '', fh_name: '', age: '', dob: '', marital_status: '',
+    mobile_code: '+92', mobile_no: '',
+    city: '', country: 'Pakistan',
     patient_type: 'in-clinic', consent_taken: false,
     know_patient_of: '', history: '', temperament: '',
     first_subscription: '', diagnosis: '', remarks: '',
   });
-  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [error, setError] = useState('');
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleFileChange = (e) => {
-    const selected = Array.from(e.target.files);
-    const valid = selected.filter(f =>
-      f.type === 'application/pdf' || f.type.startsWith('image/')
-    );
-    if (valid.length !== selected.length) {
-      setError('Only PDF and image files are allowed.');
-    }
-    setFiles(prev => [...prev, ...valid]);
+  const handleDobChange = (dob) => {
+    const age = dob
+      ? Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
+      : '';
+    set('dob', dob);
+    set('age', age ? `${age} yrs` : '');
   };
-
-  const removeFile = (idx) => setFiles(f => f.filter((_, i) => i !== idx));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,35 +56,18 @@ export default function NewPatient() {
     setError('');
     setLoading(true);
     try {
-      const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
-      if (isMock) {
-        alert('Mock mode: patient saved locally (not sent to backend).');
-        navigate('/patients');
-        return;
+      const payload = { ...form };
+      // combine country code + number
+      if (payload.mobile_no) {
+        payload.mobile_no = `${payload.mobile_code} ${payload.mobile_no}`;
       }
+      delete payload.mobile_code;
+      delete payload.dob;
+      payload.date_of_first_visit = new Date().toISOString().slice(0, 10);
+      payload.consent_datetime = form.consent_taken ? new Date().toISOString() : null;
 
-      const res = await api.post('/patients/', {
-        ...form,
-        date_of_first_visit: new Date().toISOString().slice(0, 10),
-        consent_datetime: form.consent_taken ? new Date().toISOString() : null,
-      });
-
-      const newPatientId = res.data.id;
-
-      // Upload files if any
-      if (files.length > 0) {
-        setUploadingFiles(true);
-        for (const file of files) {
-          const fd = new FormData();
-          fd.append('file', file);
-          await api.post(`/patients/${newPatientId}/upload`, fd, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-        }
-        setUploadingFiles(false);
-      }
-
-      navigate(`/patients/${newPatientId}`);
+      const res = await api.post('/patients/', payload);
+      navigate(`/patients/${res.data.id}`);
     } catch (e) {
       setError(e.response?.data?.detail || 'Failed to create patient. Is the backend running?');
     } finally {
@@ -109,8 +105,19 @@ export default function NewPatient() {
 
           <div className="form-row form-row--3">
             <div className="form-group">
-              <label className="form-label">Age</label>
-              <input className="form-input" value={form.age} onChange={e => set('age', e.target.value)} placeholder="e.g. 35 yrs" />
+              <label className="form-label">Date of Birth</label>
+              <input
+                className="form-input"
+                type="date"
+                value={form.dob}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => handleDobChange(e.target.value)}
+              />
+              {form.age && (
+                <span style={{ fontSize: 12, color: 'var(--sage)', marginTop: 4, display: 'block' }}>
+                  Age: {form.age}
+                </span>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Marital Status</label>
@@ -121,7 +128,25 @@ export default function NewPatient() {
             </div>
             <div className="form-group">
               <label className="form-label">Mobile Number</label>
-              <input className="form-input" value={form.mobile_no} onChange={e => set('mobile_no', e.target.value)} placeholder="03XX-XXXXXXX" />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <select
+                  className="form-select"
+                  style={{ maxWidth: 130, flexShrink: 0 }}
+                  value={form.mobile_code}
+                  onChange={e => set('mobile_code', e.target.value)}
+                >
+                  {COUNTRY_CODES.map(([code, label]) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+                <input
+                  className="form-input"
+                  type="tel"
+                  placeholder="3XX-XXXXXXX"
+                  value={form.mobile_no}
+                  onChange={e => set('mobile_no', e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -147,7 +172,7 @@ export default function NewPatient() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Know Patient Of</label>
+              <label className="form-label">Known Patient Of</label>
               <input className="form-input" value={form.know_patient_of} onChange={e => set('know_patient_of', e.target.value)} />
             </div>
           </div>
@@ -202,56 +227,15 @@ export default function NewPatient() {
             <textarea className="form-textarea" value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={2} />
           </div>
 
-          {/* File uploads */}
-          <p className="form-section-title">Attachments (ID Card, Referral, Old Records)</p>
-          <div style={{ marginBottom: 20 }}>
-            <label
-              htmlFor="patient-file-upload"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '8px 14px', border: '1.5px dashed var(--border, #ccc)',
-                borderRadius: 8, cursor: 'pointer', fontSize: 13,
-                color: 'var(--ink-mid)', background: 'var(--bg, #fafafa)'
-              }}
-            >
-              <Paperclip size={14} /> Attach PDF or Image
-            </label>
-            <input
-              id="patient-file-upload"
-              type="file"
-              accept=".pdf,image/*"
-              multiple
-              style={{ display: 'none' }}
-              onChange={handleFileChange}
-            />
-            {files.length > 0 && (
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {files.map((f, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '6px 10px', background: 'var(--bg, #f5f5f5)',
-                    borderRadius: 6, fontSize: 13
-                  }}>
-                    <span>📎 {f.name} <span style={{ color: 'var(--ink-lite)', fontSize: 11 }}>({(f.size / 1024).toFixed(0)} KB)</span></span>
-                    <button type="button" onClick={() => removeFile(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-lite)' }}>
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           {error && <div className="login-error" style={{ marginBottom: 16 }}>{error}</div>}
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <button type="submit" className="btn btn--sage" disabled={loading || uploadingFiles}>
-              {(loading || uploadingFiles) ? <Loader2 size={15} className="spin" /> : null}
-              {uploadingFiles ? 'Uploading files…' : loading ? 'Saving…' : 'Register Patient'}
+            <button type="submit" className="btn btn--sage" disabled={loading}>
+              {loading ? <Loader2 size={15} className="spin" /> : null}
+              {loading ? 'Saving…' : 'Register Patient'}
             </button>
             <Link to="/patients" className="btn btn--ghost">Cancel</Link>
           </div>
-
         </form>
       </div>
     </div>
