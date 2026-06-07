@@ -61,7 +61,7 @@ def send_otp_email(to_email: str, otp: str, user_name: str = ""):
 
     payload = {
         "from": {
-            "email": "MS_sender@trial-3z0vklo1zxdgdpyo.mlsender.net",
+            "email": "MS_sender@test-pzkmgq7mzxnl059v.mlsender.net",
             "name":  "Dr. Arshad Mahmood Clinic"
         },
         "to": [{"email": to_email, "name": user_name or to_email}],
