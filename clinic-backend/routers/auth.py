@@ -39,7 +39,6 @@ async def google_login(body: GoogleLoginRequest):
     user = cur.fetchone()
 
     if not user:
-        # Auto-register as reception, pending superadmin approval
         cur.execute(
             "INSERT INTO users (email, name, role) VALUES (%s, %s, 'reception') RETURNING id, email, role, is_active, name",
             (email, name)
@@ -51,11 +50,6 @@ async def google_login(body: GoogleLoginRequest):
         cur.close(); conn.close()
         raise HTTPException(status_code=403, detail="Account deactivated. Contact admin.")
 
-    if not user.get("email"):
-        cur.close(); conn.close()
-        raise HTTPException(status_code=403, detail="No email registered for OTP.")
-
-    # Generate and store OTP
     otp     = generate_otp()
     expires = datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRY_MINUTES)
 
@@ -67,7 +61,6 @@ async def google_login(body: GoogleLoginRequest):
     cur.close()
     conn.close()
 
-    # Send OTP to registered email
     send_otp_email(user["email"], otp, user["name"] or name)
 
     return {
@@ -76,7 +69,7 @@ async def google_login(body: GoogleLoginRequest):
         "requires_otp": True
     }
 
-# ── Step 1b: Email/phone login → sends OTP ───────────────────────────────────
+# ── Step 1b: Phone login → looks up by phone, sends OTP to email ─────────────
 
 @router.post("/request-otp")
 def request_otp(body: PhoneLoginRequest):
@@ -84,11 +77,11 @@ def request_otp(body: PhoneLoginRequest):
     cur  = conn.cursor()
 
     cur.execute("SELECT id, email, role, is_active, name FROM users WHERE phone = %s", (body.email,))
-user = cur.fetchone()
+    user = cur.fetchone()
 
-if not user:
-    cur.close(); conn.close()
-    raise HTTPException(status_code=404, detail="No account found with this phone number.")
+    if not user:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="No account found with this phone number.")
 
     if not user["is_active"]:
         cur.close(); conn.close()
@@ -142,7 +135,6 @@ def verify_otp(body: VerifyOTPRequest):
         cur.close(); conn.close()
         raise HTTPException(status_code=401, detail="OTP expired. Please login again.")
 
-    # Clear OTP after successful use
     cur.execute("UPDATE users SET otp_code = NULL, otp_expires_at = NULL WHERE id = %s", (user["id"],))
     conn.commit()
     cur.close()
