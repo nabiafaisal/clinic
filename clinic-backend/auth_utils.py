@@ -78,9 +78,11 @@ def send_otp_email(to_email: str, otp: str, user_name: str = ""):
     msg.attach(MIMEText(html, "html"))
 
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(SMTP_EMAIL, SMTP_PASSWORD)
-            server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+    server.ehlo()
+    server.starttls()
+    server.login(SMTP_EMAIL, SMTP_PASSWORD)
+    server.sendmail(SMTP_EMAIL, to_email, msg.as_string())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
 
