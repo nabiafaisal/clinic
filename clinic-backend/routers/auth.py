@@ -76,7 +76,11 @@ def request_otp(body: PhoneLoginRequest):
     conn = get_conn()
     cur  = conn.cursor()
 
-    cur.execute("SELECT id, email, role, is_active, name FROM users WHERE phone = %s", (body.email,))
+    phone = body.email.strip()
+    if phone.startswith("0"):
+        phone = "+92" + phone[1:]
+
+    cur.execute("SELECT id, email, role, is_active, name FROM users WHERE phone = %s", (phone,))
     user = cur.fetchone()
 
     if not user:
