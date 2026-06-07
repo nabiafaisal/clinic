@@ -83,12 +83,12 @@ def request_otp(body: PhoneLoginRequest):
     conn = get_conn()
     cur  = conn.cursor()
 
-    cur.execute("SELECT id, email, role, is_active, name FROM users WHERE email = %s", (body.email,))
-    user = cur.fetchone()
+    cur.execute("SELECT id, email, role, is_active, name FROM users WHERE phone = %s", (body.email,))
+user = cur.fetchone()
 
-    if not user:
-        cur.close(); conn.close()
-        raise HTTPException(status_code=404, detail="No account found with this email.")
+if not user:
+    cur.close(); conn.close()
+    raise HTTPException(status_code=404, detail="No account found with this phone number.")
 
     if not user["is_active"]:
         cur.close(); conn.close()
