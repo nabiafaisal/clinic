@@ -38,7 +38,7 @@ export default function Login() {
   // ── Step 1b: Email login ───────────────────────────────────────────────────
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim()) { setError('Enter your email address.'); return; }
+    if (!email.trim()) { setError('Enter your phone number.'); return; }
     setError('');
     setLoading(true);
     try {
@@ -159,7 +159,7 @@ export default function Login() {
                     transition: 'all 0.15s'
                   }}
                 >
-                  {m === 'google' ? '🔵 Google' : '✉️ Email'}
+                  {m === 'google' ? '🔵 Google' : '📱 Phone'}
                 </button>
               ))}
             </div>
@@ -188,15 +188,15 @@ export default function Login() {
             {method === 'email' && (
               <form onSubmit={handleEmailSubmit}>
                 <div className="form-group" style={{ marginBottom: 14 }}>
-                  <label className="form-label">Registered Email Address</label>
-                  <input
-                    className="form-input"
-                    type="email"
-                    placeholder="doctor@clinic.com"
+                  <label className="form-label">Registered Phone Number</label>
+              <input
+              className="form-input"
+                type="tel"
+                  placeholder="+923001234567"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    autoFocus
-                  />
+                      onChange={e => setEmail(e.target.value)}
+                        autoFocus
+                />
                 </div>
                 <button type="submit" className="btn btn--sage" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading}>
                   {loading ? <Loader2 size={16} className="spin" /> : null}
