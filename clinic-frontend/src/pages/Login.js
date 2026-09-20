@@ -10,13 +10,34 @@ export default function Login() {
   const { login } = useAuth();
   const navigate  = useNavigate();
 
-  const [step, setStep]       = useState('login');   // 'login' | 'otp'
-  const [method, setMethod]   = useState('google');  // 'google' | 'email'
+  const [step, setStep]       = useState('login');    // 'login' | 'otp'
+  const [method, setMethod]   = useState('password'); // 'password' | 'google' | 'email'
   const [email, setEmail]     = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp]         = useState('');
   const [otpEmail, setOtpEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+
+  // ── Password login ─────────────────────────────────────────────────────────
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.post('/auth/login', {
+        email: email.trim(),
+        password,
+      });
+      login(res.data.user, res.data.access_token);
+      navigate('/');
+    } catch (e) {
+      setError(e.response?.data?.detail || 'Incorrect email or password.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ── Step 1a: Google login ──────────────────────────────────────────────────
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -147,7 +168,7 @@ export default function Login() {
           <>
             {/* Tab selector */}
             <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1.5px solid var(--border, #e5e2d9)', borderRadius: 8, overflow: 'hidden' }}>
-              {['google', 'email'].map(m => (
+              {['password', 'google', 'email'].map(m => (
                 <button
                   key={m}
                   onClick={() => { setMethod(m); setError(''); }}
@@ -159,10 +180,43 @@ export default function Login() {
                     transition: 'all 0.15s'
                   }}
                 >
-                  {m === 'google' ? '🔵 Google' : '📱 Phone'}
+                  {m === 'password' ? '🔑 Password' : m === 'google' ? '🔵 Google' : '📱 Phone'}
                 </button>
               ))}
             </div>
+
+            {method === 'password' && (
+              <form onSubmit={handlePasswordSubmit}>
+                <div className="form-group" style={{ marginBottom: 14 }}>
+                  <label className="form-label">Email</label>
+                  <input
+                    className="form-input"
+                    type="email"
+                    placeholder="you@clinic.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 14 }}>
+                  <label className="form-label">Password</label>
+                  <input
+                    className="form-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                </div>
+                <button type="submit" className="btn btn--sage" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading}>
+                  {loading ? <Loader2 size={16} className="spin" /> : null}
+                  {loading ? 'Signing in…' : 'Sign In'}
+                </button>
+                <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-lite)', marginTop: 10 }}>
+                  Forgot your password? Ask the clinic admin to reset it for you.
+                </p>
+              </form>
+            )}
 
             {method === 'google' && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>

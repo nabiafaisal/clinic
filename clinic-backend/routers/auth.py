@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 from db import get_conn
 from auth_utils import (
     verify_google_token, create_jwt,
-    generate_otp, send_otp_email
+    generate_otp, send_otp_email,
+    hash_password, verify_password, get_current_user,
 )
 
 router = APIRouter()
@@ -20,6 +21,14 @@ class PhoneLoginRequest(BaseModel):
 class VerifyOTPRequest(BaseModel):
     email: str
     otp:   str
+
+class PasswordLoginRequest(BaseModel):
+    email:    str
+    password: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password:     str
 
 # ── Step 1a: Google login → sends OTP ────────────────────────────────────────
 
@@ -39,11 +48,12 @@ async def google_login(body: GoogleLoginRequest):
     user = cur.fetchone()
 
     if not user:
-        cur.close(); conn.close()
-        raise HTTPException(
-            status_code=403,
-            detail="No staff account found for this email. Ask the clinic admin to add you first."
+        cur.execute(
+            "INSERT INTO users (email, name, role) VALUES (%s, %s, 'reception') RETURNING id, email, role, is_active, name",
+            (email, name)
         )
+        user = cur.fetchone()
+        conn.commit()
 
     if not user["is_active"]:
         cur.close(); conn.close()
@@ -108,6 +118,65 @@ def request_otp(body: PhoneLoginRequest):
         "email":   user["email"],
         "requires_otp": True
     }
+
+# ── Password login → return JWT directly (no OTP) ────────────────────────────
+
+@router.post("/login")
+def password_login(body: PasswordLoginRequest):
+    conn = get_conn()
+    cur  = conn.cursor()
+
+    cur.execute(
+        "SELECT id, email, role, is_active, name, password_hash FROM users WHERE email = %s",
+        (body.email.strip().lower(),)
+    )
+    user = cur.fetchone()
+    cur.close(); conn.close()
+
+    # Same generic error whether the account doesn't exist or the password is
+    # wrong, so we don't leak which registered emails exist.
+    if not user or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+
+    if not user["is_active"]:
+        raise HTTPException(status_code=403, detail="Account deactivated. Contact admin.")
+
+    token = create_jwt(user["id"], user["email"], user["role"])
+    return {
+        "access_token": token,
+        "token_type":   "bearer",
+        "user": {
+            "id":    user["id"],
+            "email": user["email"],
+            "role":  user["role"],
+            "name":  user["name"],
+        }
+    }
+
+# ── Logged-in user changes their own password ─────────────────────────────────
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordRequest, user=Security(get_current_user)):
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("SELECT id, password_hash FROM users WHERE id = %s", (user["sub"],))
+    row = cur.fetchone()
+
+    if not row or not verify_password(body.current_password, row["password_hash"]):
+        cur.close(); conn.close()
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+
+    if len(body.new_password) < 8:
+        cur.close(); conn.close()
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters.")
+
+    cur.execute(
+        "UPDATE users SET password_hash = %s WHERE id = %s",
+        (hash_password(body.new_password), user["sub"])
+    )
+    conn.commit()
+    cur.close(); conn.close()
+    return {"message": "Password updated."}
 
 # ── Step 2: Verify OTP → return JWT ──────────────────────────────────────────
 
