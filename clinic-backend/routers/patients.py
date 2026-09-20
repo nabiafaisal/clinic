@@ -15,13 +15,11 @@ router = APIRouter()
 class PatientCreate(BaseModel):
     name:                str
     fh_name:             Optional[str] = None
-    cnic:                Optional[str] = None
     age:                 Optional[str] = None
     marital_status:      Optional[str] = None
     mobile_no:           Optional[str] = None
     city:                Optional[str] = None
     country:             Optional[str] = None
-    address:             Optional[str] = None
     patient_type:        Optional[str] = "in-clinic"
     consent_taken:       Optional[bool] = False
     date_of_first_visit: Optional[date] = None
@@ -35,42 +33,74 @@ class PatientCreate(BaseModel):
 class PatientUpdate(PatientCreate):
     name: Optional[str] = None
 
+class PublicConsultationRequest(BaseModel):
+    """What a patient submits themselves — no login, no clinical fields."""
+    name:      str
+    fh_name:   Optional[str] = None
+    mobile_no: Optional[str] = None
+    city:      Optional[str] = None
+    country:   Optional[str] = None
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/")
 def list_patients(
     search: Optional[str] = Query(None),
+    needs_review: Optional[bool] = Query(None),
     skip:   int = 0,
     limit:  int = 50,
     user=Security(get_current_user)
 ):
     conn = get_conn()
     cur  = conn.cursor()
+
+    where = []
+    params = []
     if search:
-        q = f"%{search}%"
-        cur.execute("""
-            SELECT id, legacy_fileno, name, fh_name, cnic, age, marital_status,
-                   mobile_no, city, patient_type, date_of_first_visit, diagnosis
-            FROM patients
-            WHERE name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s OR cnic ILIKE %s
-            ORDER BY id DESC LIMIT %s OFFSET %s
-        """, (q, q, q, q, limit, skip))
-    else:
-        cur.execute("""
-            SELECT id, legacy_fileno, name, fh_name, cnic, age, marital_status,
-                   mobile_no, city, patient_type, date_of_first_visit, diagnosis
-            FROM patients
-            ORDER BY id DESC LIMIT %s OFFSET %s
-        """, (limit, skip))
+        where.append("(name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s)")
+        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
+    if needs_review is not None:
+        where.append("needs_review = %s")
+        params.append(needs_review)
+    where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+
+    cur.execute(f"""
+        SELECT id, legacy_fileno, name, fh_name, age, marital_status,
+               mobile_no, city, patient_type, date_of_first_visit, diagnosis,
+               needs_review, created_at
+        FROM patients
+        {where_clause}
+        ORDER BY id DESC LIMIT %s OFFSET %s
+    """, params + [limit, skip])
     rows = cur.fetchall()
 
-    cur.execute("SELECT COUNT(*) as total FROM patients" +
-                (" WHERE name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s OR cnic ILIKE %s" if search else ""),
-                (f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%") if search else ())
+    cur.execute(f"SELECT COUNT(*) as total FROM patients {where_clause}", params)
     total = cur.fetchone()["total"]
     cur.close()
     conn.close()
     return {"total": total, "patients": rows}
+
+# ── Public consultation request (no login — must be before /{patient_id}) ────
+
+@router.post("/public-request", status_code=201)
+def request_online_consultation(body: PublicConsultationRequest):
+    """Patients submit this themselves, no account needed. Creates a minimal
+    patient record flagged needs_review so staff see it as a pending alert
+    on the dashboard and can follow up / fill in the rest."""
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("""
+        INSERT INTO patients
+            (name, fh_name, mobile_no, city, country,
+             patient_type, date_of_first_visit, needs_review)
+        VALUES (%s,%s,%s,%s,%s,'online',CURRENT_DATE,TRUE)
+        RETURNING id, name
+    """, (body.name, body.fh_name, body.mobile_no, body.city, body.country))
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    return {"message": "Request received. The clinic will contact you shortly.", "id": row["id"]}
 
 # ── Export (must be before /{patient_id}) ─────────────────────────────────────
 
@@ -79,8 +109,8 @@ def export_patients(user=Security(get_current_user)):
     conn = get_conn()
     cur  = conn.cursor()
     cur.execute("""
-        SELECT legacy_fileno, name, fh_name, cnic, age, marital_status,
-               mobile_no, city, country, address, patient_type,
+        SELECT legacy_fileno, name, fh_name, age, marital_status,
+               mobile_no, city, country, patient_type,
                date_of_first_visit, diagnosis, remarks
         FROM patients
         ORDER BY legacy_fileno NULLS LAST, id
@@ -91,11 +121,11 @@ def export_patients(user=Security(get_current_user)):
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['File#','Name','F/H Name','CNIC','Age','Marital Status',
-                     'Mobile','City','Country','Address','Type','First Visit','Diagnosis','Remarks'])
+    writer.writerow(['File#','Name','F/H Name','Age','Marital Status',
+                     'Mobile','City','Country','Type','First Visit','Diagnosis','Remarks'])
     for r in rows:
-        writer.writerow([r['legacy_fileno'], r['name'], r['fh_name'], r['cnic'], r['age'],
-                         r['marital_status'], r['mobile_no'], r['city'], r['country'], r['address'],
+        writer.writerow([r['legacy_fileno'], r['name'], r['fh_name'], r['age'],
+                         r['marital_status'], r['mobile_no'], r['city'], r['country'],
                          r['patient_type'], r['date_of_first_visit'], r['diagnosis'], r['remarks']])
     output.seek(0)
     return StreamingResponse(
@@ -119,22 +149,20 @@ def get_patient(patient_id: int, user=Security(get_current_user)):
     return row
 
 @router.post("/", status_code=201)
-def create_patient(body: PatientCreate, user=Security(require_role("doctor", "reception"))):
-    if body.patient_type == "online" and not (body.address and body.address.strip()):
-        raise HTTPException(status_code=400, detail="Postal address is required for online patients.")
+def create_patient(body: PatientCreate, user=Security(require_role("superadmin", "admin", "reception"))):
     conn = get_conn()
     cur  = conn.cursor()
     cur.execute("""
         INSERT INTO patients
-            (name, fh_name, cnic, age, marital_status, mobile_no, city, country, address,
+            (name, fh_name, age, marital_status, mobile_no, city, country,
              patient_type, consent_taken, consent_datetime,
              date_of_first_visit, know_patient_of, history, temperament,
              first_subscription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
-        body.name, body.fh_name, body.cnic, body.age, body.marital_status, body.mobile_no,
-        body.city, body.country, body.address, body.patient_type, body.consent_taken,
+        body.name, body.fh_name, body.age, body.marital_status, body.mobile_no,
+        body.city, body.country, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
         body.date_of_first_visit, body.know_patient_of, body.history,
         body.temperament, body.first_subscription, body.diagnosis,
@@ -147,23 +175,12 @@ def create_patient(body: PatientCreate, user=Security(require_role("doctor", "re
     return row
 
 @router.patch("/{patient_id}")
-def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("doctor", "reception"))):
+def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("superadmin", "admin", "reception"))):
     conn = get_conn()
     cur  = conn.cursor()
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
-
-    if "patient_type" in fields or "address" in fields:
-        cur.execute("SELECT patient_type, address FROM patients WHERE id = %s", (patient_id,))
-        existing = cur.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Patient not found")
-        effective_type    = fields.get("patient_type", existing["patient_type"])
-        effective_address = fields.get("address", existing["address"])
-        if effective_type == "online" and not (effective_address and effective_address.strip()):
-            raise HTTPException(status_code=400, detail="Postal address is required for online patients.")
-
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     set_clause += ", updated_by = %s, updated_at = NOW()"
     values = list(fields.values()) + [user["sub"], patient_id]
@@ -176,6 +193,22 @@ def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_r
         raise HTTPException(status_code=404, detail="Patient not found")
     return row
 
+@router.patch("/{patient_id}/mark-reviewed")
+def mark_reviewed(patient_id: int, user=Security(require_role("superadmin", "admin", "reception"))):
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute(
+        "UPDATE patients SET needs_review = FALSE WHERE id = %s RETURNING id",
+        (patient_id,)
+    )
+    row = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return {"message": "Marked reviewed"}
+
 @router.get("/{patient_id}/visits")
 def get_patient_visits(patient_id: int, user=Security(get_current_user)):
     conn = get_conn()
@@ -183,7 +216,7 @@ def get_patient_visits(patient_id: int, user=Security(get_current_user)):
     cur.execute("""
         SELECT * FROM visits
         WHERE patient_id = %s AND is_deleted = FALSE
-        ORDER BY visit_date DESC NULLS LAST
+        ORDER BY visit_date DESC
     """, (patient_id,))
     rows = cur.fetchall()
     cur.close()

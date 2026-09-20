@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import {
-  Users, Calendar, TrendingUp, UserPlus, ArrowRight, Loader2, PhoneCall, Clock, CheckCircle2
+  Users, Calendar, TrendingUp, UserPlus, ArrowRight, Loader2, Bell, Check
 } from 'lucide-react';
 import './Dashboard.css';
 
@@ -11,10 +11,21 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [recentVisits, setRecentVisits] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [appointments, setAppointments] = useState([]);
-  const [pickingId, setPickingId] = useState(null);
-  const canManageAppointments = user?.role === 'doctor' || user?.role === 'superadmin';
+
+  const loadPendingRequests = () => {
+    api.get('/patients/?needs_review=true&limit=20')
+      .then(r => setPendingRequests(r.data.patients || []))
+      .catch(() => {});
+  };
+
+  const markReviewed = async (id) => {
+    try {
+      await api.patch(`/patients/${id}/mark-reviewed`);
+      setPendingRequests(prev => prev.filter(p => p.id !== id));
+    } catch (e) { /* ignore, leave it in the list to retry */ }
+  };
 
   useEffect(() => {
     const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
@@ -28,10 +39,6 @@ export default function Dashboard() {
       ]);
       setLoading(false);
       return;
-    }
-
-    if (canManageAppointments) {
-      api.get('/appointments/').then(r => setAppointments(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -64,21 +71,9 @@ export default function Dashboard() {
       setRecentVisits(visits.slice(0, 6));
       setLoading(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const handlePick = async (id) => {
-    setPickingId(id);
-    try {
-      const res = await api.post(`/appointments/${id}/pick`);
-      setAppointments(as => as.map(a => a.id === id ? res.data : a));
-    } catch (e) {
-      alert(e.response?.data?.detail || 'Could not pick this appointment — someone may have already taken it.');
-      api.get('/appointments/').then(r => setAppointments(Array.isArray(r.data) ? r.data : [])).catch(() => {});
-    } finally {
-      setPickingId(null);
-    }
-  };
+    loadPendingRequests();
+  }, []);
 
   const greeting = () => {
     return 'Salam';
@@ -138,51 +133,38 @@ export default function Dashboard() {
         />
       </div>
 
-      {canManageAppointments && (
-        <div className="section-card" style={{ marginBottom: 20 }}>
+      {pendingRequests.length > 0 && (
+        <div className="section-card" style={{ borderColor: 'var(--amber, #c8820a)' }}>
           <div className="section-card__header">
-            <h2 className="section-card__title">Appointment Requests</h2>
+            <h2 className="section-card__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Bell size={16} style={{ color: 'var(--amber, #c8820a)' }} />
+              Online Consultation Requests
+              <span className="badge badge--pending">{pendingRequests.length} new</span>
+            </h2>
           </div>
-          {appointments.filter(a => a.status !== 'completed' && a.status !== 'cancelled').length === 0 ? (
-            <p className="empty-text">No open appointment requests.</p>
-          ) : (
-            <div className="visit-list">
-              {appointments.filter(a => a.status !== 'completed' && a.status !== 'cancelled').map(a => (
-                <div key={a.id} className="visit-row" style={{ cursor: 'default' }}>
-                  <div className="visit-row__info">
-                    <span className="visit-row__name">{a.patient_name}</span>
-                    <span className="visit-row__meta">
-                      <span><PhoneCall size={11} style={{ verticalAlign: -1, marginRight: 3 }} />{a.mobile_no}</span>
-                      {(a.preferred_date || a.preferred_time) && (
-                        <span><Clock size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-                          {a.preferred_date ? new Date(a.preferred_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' }) : ''}
-                          {a.preferred_time ? ` · ${a.preferred_time}` : ''}
-                        </span>
-                      )}
-                      {a.reason && <span>{a.reason.slice(0, 50)}{a.reason.length > 50 ? '…' : ''}</span>}
-                    </span>
-                  </div>
-                  <div className="visit-row__right">
-                    <span className={`badge badge--${a.appointment_mode || 'physical'}`}>{a.appointment_mode || 'physical'}</span>
-                    {a.status === 'pending' ? (
-                      <button
-                        className="btn btn--sage btn--sm"
-                        disabled={pickingId === a.id}
-                        onClick={() => handlePick(a.id)}
-                      >
-                        {pickingId === a.id ? <Loader2 size={13} className="spin" /> : 'Pick'}
-                      </button>
-                    ) : (
-                      <span className="badge badge--finalized">
-                        <CheckCircle2 size={11} style={{ verticalAlign: -1, marginRight: 3 }} />
-                        Picked by {a.picked_by_name || (a.picked_by === Number(user?.id) ? 'you' : 'someone')}
-                      </span>
-                    )}
-                  </div>
+          <div className="visit-list">
+            {pendingRequests.map(p => (
+              <div key={p.id} className="visit-row" style={{ textDecoration: 'none' }}>
+                <Link to={`/patients/${p.id}`} className="visit-row__info" style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <span className="visit-row__name">{p.name}</span>
+                  <span className="visit-row__meta">
+                    {p.mobile_no && <span>{p.mobile_no}</span>}
+                    {p.city && <span>{p.city}</span>}
+                  </span>
+                </Link>
+                <div className="visit-row__right">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => markReviewed(p.id)}
+                    title="Mark as contacted / reviewed"
+                  >
+                    <Check size={13} /> Mark reviewed
+                  </button>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
