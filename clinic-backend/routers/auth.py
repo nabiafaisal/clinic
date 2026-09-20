@@ -46,14 +46,16 @@ async def google_login(body: GoogleLoginRequest):
 
     cur.execute("SELECT id, email, role, is_active, name FROM users WHERE email = %s", (email,))
     user = cur.fetchone()
+    cur.close()
+    conn.close()
 
     if not user:
-        cur.execute(
-            "INSERT INTO users (email, name, role) VALUES (%s, %s, 'reception') RETURNING id, email, role, is_active, name",
-            (email, name)
-        )
-        user = cur.fetchone()
-        conn.commit()
+        # Not a staff account. Frontend catches this and routes them to the
+        # patient online-request form instead of showing an error.
+        raise HTTPException(status_code=404, detail="not_registered")
+
+    conn = get_conn()
+    cur  = conn.cursor()
 
     if not user["is_active"]:
         cur.close(); conn.close()

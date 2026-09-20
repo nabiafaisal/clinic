@@ -27,26 +27,18 @@ class PatientCreate(BaseModel):
     history:             Optional[str] = None
     temperament:         Optional[str] = None
     first_subscription:  Optional[str] = None
+    latest_prescription: Optional[str] = None
     diagnosis:           Optional[str] = None
     remarks:             Optional[str] = None
 
 class PatientUpdate(PatientCreate):
     name: Optional[str] = None
 
-class PublicConsultationRequest(BaseModel):
-    """What a patient submits themselves — no login, no clinical fields."""
-    name:      str
-    fh_name:   Optional[str] = None
-    mobile_no: Optional[str] = None
-    city:      Optional[str] = None
-    country:   Optional[str] = None
-
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/")
 def list_patients(
     search: Optional[str] = Query(None),
-    needs_review: Optional[bool] = Query(None),
     skip:   int = 0,
     limit:  int = 50,
     user=Security(get_current_user)
@@ -59,15 +51,12 @@ def list_patients(
     if search:
         where.append("(name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s)")
         params += [f"%{search}%", f"%{search}%", f"%{search}%"]
-    if needs_review is not None:
-        where.append("needs_review = %s")
-        params.append(needs_review)
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
     cur.execute(f"""
         SELECT id, legacy_fileno, name, fh_name, age, marital_status,
                mobile_no, city, patient_type, date_of_first_visit, diagnosis,
-               needs_review, created_at
+               created_at
         FROM patients
         {where_clause}
         ORDER BY id DESC LIMIT %s OFFSET %s
@@ -80,32 +69,10 @@ def list_patients(
     conn.close()
     return {"total": total, "patients": rows}
 
-# ── Public consultation request (no login — must be before /{patient_id}) ────
-
-@router.post("/public-request", status_code=201)
-def request_online_consultation(body: PublicConsultationRequest):
-    """Patients submit this themselves, no account needed. Creates a minimal
-    patient record flagged needs_review so staff see it as a pending alert
-    on the dashboard and can follow up / fill in the rest."""
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute("""
-        INSERT INTO patients
-            (name, fh_name, mobile_no, city, country,
-             patient_type, date_of_first_visit, needs_review)
-        VALUES (%s,%s,%s,%s,%s,'online',CURRENT_DATE,TRUE)
-        RETURNING id, name
-    """, (body.name, body.fh_name, body.mobile_no, body.city, body.country))
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
-    return {"message": "Request received. The clinic will contact you shortly.", "id": row["id"]}
-
 # ── Export (must be before /{patient_id}) ─────────────────────────────────────
 
 @router.get("/export")
-def export_patients(user=Security(get_current_user)):
+def export_patients(user=Security(require_role("superadmin", "admin", "reception"))):
     conn = get_conn()
     cur  = conn.cursor()
     cur.execute("""
@@ -149,7 +116,7 @@ def get_patient(patient_id: int, user=Security(get_current_user)):
     return row
 
 @router.post("/", status_code=201)
-def create_patient(body: PatientCreate, user=Security(require_role("superadmin", "admin", "reception"))):
+def create_patient(body: PatientCreate, user=Security(require_role("superadmin", "admin", "reception", "doctor"))):
     conn = get_conn()
     cur  = conn.cursor()
     cur.execute("""
@@ -157,16 +124,16 @@ def create_patient(body: PatientCreate, user=Security(require_role("superadmin",
             (name, fh_name, age, marital_status, mobile_no, city, country,
              patient_type, consent_taken, consent_datetime,
              date_of_first_visit, know_patient_of, history, temperament,
-             first_subscription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             first_subscription, latest_prescription, diagnosis, remarks, created_by)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
         body.name, body.fh_name, body.age, body.marital_status, body.mobile_no,
         body.city, body.country, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
         body.date_of_first_visit, body.know_patient_of, body.history,
-        body.temperament, body.first_subscription, body.diagnosis,
-        body.remarks, user["sub"]
+        body.temperament, body.first_subscription, body.latest_prescription,
+        body.diagnosis, body.remarks, user["sub"]
     ))
     row = cur.fetchone()
     conn.commit()
@@ -192,22 +159,6 @@ def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_r
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
     return row
-
-@router.patch("/{patient_id}/mark-reviewed")
-def mark_reviewed(patient_id: int, user=Security(require_role("superadmin", "admin", "reception"))):
-    conn = get_conn()
-    cur  = conn.cursor()
-    cur.execute(
-        "UPDATE patients SET needs_review = FALSE WHERE id = %s RETURNING id",
-        (patient_id,)
-    )
-    row = cur.fetchone()
-    conn.commit()
-    cur.close()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return {"message": "Marked reviewed"}
 
 @router.get("/{patient_id}/visits")
 def get_patient_visits(patient_id: int, user=Security(get_current_user)):

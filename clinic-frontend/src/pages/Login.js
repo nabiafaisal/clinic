@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Stethoscope, Loader2, Mail, ArrowLeft } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
@@ -16,7 +16,24 @@ export default function Login() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
-  // ── Google sign-in → sends OTP ─────────────────────────────────────────────
+  // Decode the Google credential JWT client-side, just to prefill name/email
+  // on the patient request form — no backend call needed for this.
+  const decodeGoogleCredential = (token) => {
+    try {
+      const payload = token.split('.')[1];
+      const json = decodeURIComponent(
+        atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(json);
+    } catch {
+      return {};
+    }
+  };
+
+  // ── Google sign-in → sends OTP (staff only) ─────────────────────────────────
   const handleGoogleSuccess = async (credentialResponse) => {
     setError('');
     setLoading(true);
@@ -27,7 +44,14 @@ export default function Login() {
       setOtpEmail(res.data.email);
       setStep('otp');
     } catch (e) {
-      setError(e.response?.data?.detail || 'Login failed. Make sure your account is registered.');
+      if (e.response?.data?.detail === 'not_registered') {
+        // Not a staff account — this is a patient. Send them to the
+        // self-service online consultation request form instead.
+        const info = decodeGoogleCredential(credentialResponse.credential);
+        navigate('/request', { state: { name: info.name || '', email: info.email || '' } });
+        return;
+      }
+      setError(e.response?.data?.detail || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -148,7 +172,11 @@ export default function Login() {
             {error && <div className="login-error" style={{ marginTop: 12 }}>{error}</div>}
 
             <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--ink-lite)', marginTop: 20 }}>
-              Access restricted to authorised clinic staff only.
+              This sign-in is for clinic staff.{' '}
+              <Link to="/request" style={{ color: 'var(--sage, #2d6a4f)', fontWeight: 600 }}>
+                Book an online consultation
+              </Link>{' '}
+              instead.
             </p>
           </>
         )}

@@ -35,7 +35,7 @@ export default function NewPatient() {
     city: '', country: 'Pakistan', address: '',
     patient_type: 'in-clinic', consent_taken: false,
     know_patient_of: '', history: '', temperament: '',
-    first_subscription: '', diagnosis: '', remarks: '',
+    first_subscription: '', latest_prescription: '', remarks: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -76,7 +76,7 @@ export default function NewPatient() {
   };
 
   return (
-    <div className="animate-in" style={{ maxWidth: 720 }}>
+    <div className="animate-in" style={{ maxWidth: 1080 }}>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link to="/patients" className="btn btn--ghost btn--sm"><ArrowLeft size={14} /> Back</Link>
@@ -151,7 +151,7 @@ export default function NewPatient() {
             </div>
           </div>
 
-          <div className="form-row" style={{ marginBottom: 20 }}>
+          <div className="form-row form-row--3" style={{ marginBottom: 20 }}>
             <div className="form-group">
               <label className="form-label">City</label>
               <input className="form-input" value={form.city} onChange={e => set('city', e.target.value)} />
@@ -159,6 +159,10 @@ export default function NewPatient() {
             <div className="form-group">
               <label className="form-label">Country</label>
               <input className="form-input" value={form.country} onChange={e => set('country', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Known Patient Of</label>
+              <input className="form-input" value={form.know_patient_of} onChange={e => set('know_patient_of', e.target.value)} />
             </div>
           </div>
 
@@ -171,10 +175,6 @@ export default function NewPatient() {
                 <option value="in-clinic">In-Clinic</option>
                 <option value="online">Online / Telemedicine</option>
               </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Known Patient Of</label>
-              <input className="form-input" value={form.know_patient_of} onChange={e => set('know_patient_of', e.target.value)} />
             </div>
           </div>
 
@@ -199,7 +199,7 @@ export default function NewPatient() {
 
           {/* Medical info */}
           <p className="form-section-title">Medical Information</p>
-          <div className="form-row">
+          <div className="form-row form-row--3">
             <div className="form-group">
               <label className="form-label">Temperament</label>
               <select className="form-select" value={form.temperament} onChange={e => set('temperament', e.target.value)}>
@@ -211,16 +211,15 @@ export default function NewPatient() {
               <label className="form-label">First Prescription</label>
               <input className="form-input mono" value={form.first_subscription} onChange={e => set('first_subscription', e.target.value)} placeholder="e.g. Sulph 200" />
             </div>
+            <div className="form-group">
+              <label className="form-label">Latest Prescription</label>
+              <input className="form-input mono" value={form.latest_prescription} onChange={e => set('latest_prescription', e.target.value)} placeholder="e.g. Sulph 1M" />
+            </div>
           </div>
 
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">History</label>
             <textarea className="form-textarea" value={form.history} onChange={e => set('history', e.target.value)} rows={3} />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">Diagnosis</label>
-            <textarea className="form-textarea" value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} rows={2} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 20 }}>

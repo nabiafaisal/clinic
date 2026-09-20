@@ -15,14 +15,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   const loadPendingRequests = () => {
-    api.get('/patients/?needs_review=true&limit=20')
-      .then(r => setPendingRequests(r.data.patients || []))
+    api.get('/online-requests/?status=pending')
+      .then(r => setPendingRequests(Array.isArray(r.data) ? r.data : []))
       .catch(() => {});
   };
 
   const markReviewed = async (id) => {
     try {
-      await api.patch(`/patients/${id}/mark-reviewed`);
+      await api.patch(`/online-requests/${id}/mark-reviewed`);
       setPendingRequests(prev => prev.filter(p => p.id !== id));
     } catch (e) { /* ignore, leave it in the list to retry */ }
   };
@@ -144,14 +144,21 @@ export default function Dashboard() {
           </div>
           <div className="visit-list">
             {pendingRequests.map(p => (
-              <div key={p.id} className="visit-row" style={{ textDecoration: 'none' }}>
-                <Link to={`/patients/${p.id}`} className="visit-row__info" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div key={p.id} className="visit-row">
+                <div className="visit-row__info">
                   <span className="visit-row__name">{p.name}</span>
                   <span className="visit-row__meta">
                     {p.mobile_no && <span>{p.mobile_no}</span>}
                     {p.city && <span>{p.city}</span>}
+                    {p.requested_date && (
+                      <span>
+                        Wants: {new Date(p.requested_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short' })}
+                        {p.requested_time ? ` at ${p.requested_time}` : ''}
+                      </span>
+                    )}
+                    {p.problem_summary && <span>{p.problem_summary.slice(0, 60)}{p.problem_summary.length > 60 ? '…' : ''}</span>}
                   </span>
-                </Link>
+                </div>
                 <div className="visit-row__right">
                   <button
                     type="button"
