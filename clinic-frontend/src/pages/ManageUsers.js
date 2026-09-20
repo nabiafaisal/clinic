@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Loader2, UserPlus, Check, X, Trash2 } from 'lucide-react';
+import { Loader2, UserPlus, Check, X, Trash2, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const ROLES = ['superadmin', 'admin', 'reception', 'doctor', 'dispenser'];
+const ROLES = ['superadmin', 'admin', 'reception', 'doctor'];
 
 export default function ManageUsers() {
   const [users, setUsers]     = useState([]);
@@ -11,6 +11,11 @@ export default function ManageUsers() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm]       = useState({ email: '', name: '', role: 'reception', phone: '', reg_no: '' });
   const [saving, setSaving]   = useState(false);
+
+  // Inline edit state — which row is being edited, and its draft values
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm]   = useState({ name: '', email: '', phone: '', reg_no: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -70,6 +75,31 @@ export default function ManageUsers() {
       toast.success('User removed');
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to remove user');
+    }
+  };
+
+  const startEdit = (u) => {
+    setEditingId(u.id);
+    setEditForm({ name: u.name || '', email: u.email || '', phone: u.phone || '', reg_no: u.reg_no || '' });
+  };
+
+  const cancelEdit = () => setEditingId(null);
+
+  const saveEdit = async (userId) => {
+    if (!editForm.name.trim() || !editForm.email.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await api.patch(`/users/${userId}`, editForm);
+      setUsers(us => us.map(x => x.id === userId ? { ...x, ...res.data } : x));
+      toast.success('User updated');
+      setEditingId(null);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -138,45 +168,116 @@ export default function ManageUsers() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
-                <tr key={u.id}>
-                  <td><strong>{u.name || '—'}</strong></td>
-                  <td style={{ fontSize: 12 }}>{u.email}</td>
-                  <td style={{ fontSize: 12 }}>{u.phone || '—'}</td>
-                  <td style={{ fontSize: 12 }}>{u.reg_no || '—'}</td>
-                  <td>
-                    <select
-                      className="form-input"
-                      style={{ padding: '4px 8px', fontSize: 12 }}
-                      value={u.role}
-                      onChange={e => handleRoleChange(u.id, e.target.value)}
-                    >
-                      {ROLES.map(r => <option key={r}>{r}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <span className={`badge ${u.is_active ? 'badge--finalized' : 'badge--draft'}`}>
-                      {u.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className={`btn btn--sm ${u.is_active ? 'btn--ghost' : 'btn--sage'}`}
-                      onClick={() => handleToggleActive(u)}
-                    >
-                      {u.is_active ? <X size={13} /> : <Check size={13} />}
-                      {u.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      className="btn btn--sm btn--ghost"
-                      style={{ color: '#c0392b', marginLeft: 6 }}
-                      onClick={() => handleDelete(u)}
-                    >
-                      <Trash2 size={13} /> Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {users.map(u => {
+                const isEditing = editingId === u.id;
+                return (
+                  <tr key={u.id}>
+                    {isEditing ? (
+                      <>
+                        <td>
+                          <input
+                            className="form-input" style={{ padding: '4px 8px', fontSize: 12 }}
+                            value={editForm.name}
+                            onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="form-input" style={{ padding: '4px 8px', fontSize: 12 }}
+                            type="email"
+                            value={editForm.email}
+                            onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="form-input" style={{ padding: '4px 8px', fontSize: 12 }}
+                            value={editForm.phone}
+                            onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                            placeholder="+923001234567"
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="form-input" style={{ padding: '4px 8px', fontSize: 12 }}
+                            value={editForm.reg_no}
+                            onChange={e => setEditForm(f => ({ ...f, reg_no: e.target.value }))}
+                            placeholder="PMC-12345"
+                          />
+                        </td>
+                        <td style={{ fontSize: 12 }}>{u.role}</td>
+                        <td>
+                          <span className={`badge ${u.is_active ? 'badge--finalized' : 'badge--draft'}`}>
+                            {u.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn--sm btn--sage"
+                            onClick={() => saveEdit(u.id)}
+                            disabled={editSaving}
+                          >
+                            {editSaving ? <Loader2 size={13} className="spin" /> : <Check size={13} />} Save
+                          </button>
+                          <button
+                            className="btn btn--sm btn--ghost"
+                            style={{ marginLeft: 6 }}
+                            onClick={cancelEdit}
+                            disabled={editSaving}
+                          >
+                            <X size={13} /> Cancel
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td><strong>{u.name || '—'}</strong></td>
+                        <td style={{ fontSize: 12 }}>{u.email}</td>
+                        <td style={{ fontSize: 12 }}>{u.phone || '—'}</td>
+                        <td style={{ fontSize: 12 }}>{u.reg_no || '—'}</td>
+                        <td>
+                          <select
+                            className="form-input"
+                            style={{ padding: '4px 8px', fontSize: 12 }}
+                            value={u.role}
+                            onChange={e => handleRoleChange(u.id, e.target.value)}
+                          >
+                            {ROLES.map(r => <option key={r}>{r}</option>)}
+                          </select>
+                        </td>
+                        <td>
+                          <span className={`badge ${u.is_active ? 'badge--finalized' : 'badge--draft'}`}>
+                            {u.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button
+                            className="btn btn--sm btn--ghost"
+                            onClick={() => startEdit(u)}
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
+                          <button
+                            className={`btn btn--sm ${u.is_active ? 'btn--ghost' : 'btn--sage'}`}
+                            style={{ marginLeft: 6 }}
+                            onClick={() => handleToggleActive(u)}
+                          >
+                            {u.is_active ? <X size={13} /> : <Check size={13} />}
+                            {u.is_active ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            className="btn btn--sm btn--ghost"
+                            style={{ color: '#c0392b', marginLeft: 6 }}
+                            onClick={() => handleDelete(u)}
+                          >
+                            <Trash2 size={13} /> Remove
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
