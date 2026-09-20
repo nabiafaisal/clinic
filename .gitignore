@@ -1,0 +1,21 @@
+# Dependencies / build
+node_modules/
+clinic-frontend/build/
+__pycache__/
+*.pyc
+
+# Env files (never commit secrets)
+.env
+.env.local
+*.env
+
+# Raw legacy patient data — already imported into Postgres, contains real
+# patient names/health info, should not live in git history.
+Patient Record 64 bit.accde
+legacy_migration/*.csv
+legacy_migration/*.sql
+legacy_migration/02_legacy_data_batched.sql
+
+# OS junk
+.DS_Store
+Thumbs.db

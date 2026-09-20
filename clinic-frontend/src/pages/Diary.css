@@ -1,0 +1,25 @@
+.diary-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.diary-group__date {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  color: var(--forest);
+  margin-bottom: 8px;
+}
+
+.diary-group__count {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  background: var(--sage);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-weight: 500;
+}
