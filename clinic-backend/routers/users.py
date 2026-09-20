@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Security
 from pydantic import BaseModel
 from typing import Optional
+import psycopg2
 from db import get_conn
 from auth_utils import (
     get_current_user, require_role,
@@ -41,7 +42,7 @@ def list_users(user=Security(require_role("superadmin"))):
 
 @router.post("/", status_code=201)
 def create_user(body: UserCreate, user=Security(require_role("superadmin"))):
-    if body.role not in ("superadmin", "admin", "reception"):
+    if body.role not in ("superadmin", "admin", "reception", "doctor"):
         raise HTTPException(status_code=400, detail="Invalid role")
 
     temp_password = body.password or generate_temp_password()
@@ -97,7 +98,7 @@ def reset_password(user_id: int, user=Security(require_role("superadmin"))):
 
 @router.patch("/{user_id}/role")
 def update_role(user_id: int, body: RoleUpdate, user=Security(require_role("superadmin"))):
-    if body.role not in ("superadmin", "admin", "reception"):
+    if body.role not in ("superadmin", "admin", "reception", "doctor"):
         raise HTTPException(status_code=400, detail="Invalid role")
     conn = get_conn()
     cur  = conn.cursor()
@@ -132,3 +133,29 @@ def activate_user(user_id: int, user=Security(require_role("superadmin"))):
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User activated", "user": row}
+
+@router.delete("/{user_id}")
+def delete_user(user_id: int, user=Security(require_role("superadmin"))):
+    """Permanently removes a user account. This did not exist before —
+    the frontend's "Remove" button was calling an endpoint that was never
+    built, which is why it silently did nothing."""
+    if user_id == user["sub"]:
+        raise HTTPException(status_code=400, detail="You can't remove your own account.")
+
+    conn = get_conn()
+    cur  = conn.cursor()
+    try:
+        cur.execute("DELETE FROM users WHERE id = %s RETURNING id, email", (user_id,))
+        row = cur.fetchone()
+        conn.commit()
+    except psycopg2.errors.ForeignKeyViolation:
+        conn.rollback()
+        cur.close(); conn.close()
+        raise HTTPException(
+            status_code=409,
+            detail="This user has created patient or visit records, so they can't be permanently removed. Deactivate them instead."
+        )
+    cur.close(); conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User removed", "user": row}
