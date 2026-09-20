@@ -27,7 +27,7 @@ export default function PatientDetail() {
         mobile_no: '03001234567', city: 'Lahore', country: 'Pakistan',
         patient_type: 'in-clinic', date_of_first_visit: '2020-03-15',
         temperament: 'Introvert', first_subscription: 'Sulph 200',
-        diagnosis: 'Chronic skin condition', history: 'Long history of eczema',
+        address: '123 Main Street, Lahore', history: 'Long history of eczema',
         remarks: '', know_patient_of: '',
       });
       setVisits([
@@ -115,6 +115,7 @@ export default function PatientDetail() {
           <InfoItem label="Mobile" value={patient.mobile_no} icon={<Phone size={12} />} />
           <InfoItem label="CNIC" value={patient.cnic} />
           <InfoItem label="City" value={patient.city} icon={<MapPin size={12} />} />
+          <InfoItem label="Previous Medicine" value={visits.length ? visits[0].main_remedy : null} mono />
           <InfoItem
             label="First Visit"
             value={patient.date_of_first_visit
@@ -126,9 +127,9 @@ export default function PatientDetail() {
           {patient.temperament && <InfoItem label="Temperament" value={patient.temperament} />}
           {patient.first_subscription && <InfoItem label="First Remedy" value={patient.first_subscription} mono />}
         </div>
-        {patient.history   && <div className="patient-history"><span className="patient-history__label">History</span><p>{patient.history}</p></div>}
-        {patient.diagnosis && <div className="patient-history"><span className="patient-history__label">Diagnosis</span><p>{patient.diagnosis}</p></div>}
-        {patient.remarks   && <div className="patient-history"><span className="patient-history__label">Remarks</span><p>{patient.remarks}</p></div>}
+        {patient.address  && <div className="patient-history"><span className="patient-history__label">Postal Address</span><p>{patient.address}</p></div>}
+        {patient.history  && <div className="patient-history"><span className="patient-history__label">History</span><p>{patient.history}</p></div>}
+        {patient.remarks  && <div className="patient-history"><span className="patient-history__label">Remarks</span><p>{patient.remarks}</p></div>}
       </div>
 
       {/* Visit history */}

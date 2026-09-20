@@ -47,6 +47,7 @@ export default function EditPatient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(null);
+  const [previousMedicine, setPreviousMedicine] = useState(null);
 
   useEffect(() => {
     const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
@@ -55,11 +56,11 @@ export default function EditPatient() {
         name: 'Muhammad Anwar', fh_name: 'Ghulam Hussain', age: '45',
         cnic: '35202-1234567-1', dob: '1979-01-01', marital_status: 'Married',
         mobile_code: '+92', mobile_no: '03001234567',
-        city: 'Lahore', country: 'Pakistan',
+        city: 'Lahore', country: 'Pakistan', address: '123 Main Street, Lahore',
         patient_type: 'in-clinic', consent_taken: false,
         date_of_first_visit: '2020-03-15', know_patient_of: '',
         history: 'Long history of eczema', temperament: 'Introvert',
-        first_subscription: 'Sulph 200', diagnosis: 'Chronic skin condition', remarks: '',
+        first_subscription: 'Sulph 200', remarks: '',
       });
       setLoading(false);
       return;
@@ -72,17 +73,21 @@ export default function EditPatient() {
         age: d.age || '', dob: '',
         marital_status: d.marital_status || '',
         mobile_code: code, mobile_no: number,
-        city: d.city || '', country: d.country || '',
+        city: d.city || '', country: d.country || '', address: d.address || '',
         patient_type: d.patient_type || 'in-clinic',
         consent_taken: d.consent_taken || false,
         date_of_first_visit: d.date_of_first_visit ? d.date_of_first_visit.slice(0, 10) : '',
         know_patient_of: d.know_patient_of || '',
         history: d.history || '', temperament: d.temperament || '',
         first_subscription: d.first_subscription || '',
-        diagnosis: d.diagnosis || '', remarks: d.remarks || '',
+        remarks: d.remarks || '',
       });
       setLoading(false);
     }).catch(() => { toast.error('Failed to load patient'); navigate(`/patients/${id}`); });
+    api.get(`/patients/${id}/visits`).then(r => {
+      const visits = r.data || [];
+      setPreviousMedicine(visits.length ? (visits[0].main_remedy || null) : null);
+    }).catch(() => {});
   }, [id, navigate]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -219,6 +224,10 @@ export default function EditPatient() {
               <F label="Country" field="country" />
             </div>
             <div className="form-group">
+              <label className="form-label">Postal Address</label>
+              <textarea className="form-input" rows={2} value={form.address} onChange={e => set('address', e.target.value)} />
+            </div>
+            <div className="form-group">
               <label className="form-label">Patient Type</label>
               <select className="form-input" value={form.patient_type} onChange={e => set('patient_type', e.target.value)}>
                 <option value="in-clinic">In-Clinic</option>
@@ -243,8 +252,16 @@ export default function EditPatient() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <F label="Temperament" field="temperament" />
             <div className="form-group">
-              <label className="form-label">Diagnosis</label>
-              <textarea className="form-input" rows={3} value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} />
+              <label className="form-label">Previous Medicine</label>
+              <input
+                className="form-input mono"
+                value={previousMedicine || 'No prior visit on record'}
+                readOnly
+                style={{ background: '#f4f4f4', color: previousMedicine ? '#222' : '#999' }}
+              />
+              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                Auto-filled from the medicine given at the patient's most recent visit.
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">History</label>

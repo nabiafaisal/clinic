@@ -4,7 +4,7 @@ import api from '../utils/api';
 
 const MOCK_PATIENT = {
   name: 'Muhammad Anwar', fh_name: 'Ghulam Hussain', age: '45',
-  mobile_no: '03001234567', city: 'Lahore', diagnosis: 'Chronic skin condition',
+  mobile_no: '03001234567', city: 'Lahore', address: '123 Main Street, Lahore',
 };
 const MOCK_VISIT = {
   visit_date: new Date().toISOString().slice(0, 10),
@@ -20,6 +20,7 @@ export default function PrintPrescription() {
   const { id, visitId } = useParams();
   const [patient, setPatient] = useState(null);
   const [visit, setVisit]     = useState(null);
+  const [previousMedicine, setPreviousMedicine] = useState(null);
 
   useEffect(() => {
     const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
@@ -31,9 +32,14 @@ export default function PrintPrescription() {
     Promise.all([
       api.get(`/patients/${id}`),
       api.get(`/visits/${visitId}`),
-    ]).then(([pr, vr]) => {
+      api.get(`/patients/${id}/visits`),
+    ]).then(([pr, vr, vlr]) => {
       setPatient(pr.data);
       setVisit(vr.data);
+      const allVisits = vlr.data || []; // sorted most-recent-first
+      const idx = allVisits.findIndex(v => String(v.id) === String(visitId));
+      const prior = idx >= 0 ? allVisits[idx + 1] : null; // the one just before this visit
+      setPreviousMedicine(prior ? prior.main_remedy : null);
     });
   }, [id, visitId]);
 
@@ -98,7 +104,8 @@ export default function PrintPrescription() {
           <div><span style={{ color: '#666' }}>Mobile: </span>{patient.mobile_no || '—'}</div>
           {patient.cnic && <div><span style={{ color: '#666' }}>CNIC: </span>{patient.cnic}</div>}
           <div><span style={{ color: '#666' }}>City: </span>{patient.city || '—'}</div>
-          {patient.diagnosis && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Diagnosis: </span>{patient.diagnosis}</div>}
+          {patient.address && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Address: </span>{patient.address}</div>}
+          {previousMedicine && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Previous Medicine: </span>{previousMedicine}</div>}
         </div>
       </div>
 

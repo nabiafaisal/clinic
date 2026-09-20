@@ -38,10 +38,10 @@ export default function NewPatient() {
   const [form, setForm] = useState({
     name: '', fh_name: '', cnic: '', age: '', dob: '', marital_status: '',
     mobile_code: '+92', mobile_no: '',
-    city: '', country: 'Pakistan',
+    city: '', country: 'Pakistan', address: '',
     patient_type: 'in-clinic', consent_taken: false,
     know_patient_of: '', history: '', temperament: '',
-    first_subscription: '', diagnosis: '', remarks: '',
+    first_subscription: '', remarks: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -180,6 +180,11 @@ export default function NewPatient() {
             </div>
           </div>
 
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Postal Address</label>
+            <textarea className="form-textarea" value={form.address} onChange={e => set('address', e.target.value)} rows={2} />
+          </div>
+
           {/* Patient type & consent */}
           <p className="form-section-title">Consultation Type</p>
           <div className="form-row">
@@ -234,11 +239,6 @@ export default function NewPatient() {
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">History</label>
             <textarea className="form-textarea" value={form.history} onChange={e => set('history', e.target.value)} rows={3} />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">Diagnosis</label>
-            <textarea className="form-textarea" value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} rows={2} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 20 }}>

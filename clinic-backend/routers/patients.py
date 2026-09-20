@@ -21,6 +21,7 @@ class PatientCreate(BaseModel):
     mobile_no:           Optional[str] = None
     city:                Optional[str] = None
     country:             Optional[str] = None
+    address:             Optional[str] = None
     patient_type:        Optional[str] = "in-clinic"
     consent_taken:       Optional[bool] = False
     date_of_first_visit: Optional[date] = None
@@ -79,7 +80,7 @@ def export_patients(user=Security(get_current_user)):
     cur  = conn.cursor()
     cur.execute("""
         SELECT legacy_fileno, name, fh_name, cnic, age, marital_status,
-               mobile_no, city, country, patient_type,
+               mobile_no, city, country, address, patient_type,
                date_of_first_visit, diagnosis, remarks
         FROM patients
         ORDER BY legacy_fileno NULLS LAST, id
@@ -91,10 +92,10 @@ def export_patients(user=Security(get_current_user)):
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['File#','Name','F/H Name','CNIC','Age','Marital Status',
-                     'Mobile','City','Country','Type','First Visit','Diagnosis','Remarks'])
+                     'Mobile','City','Country','Address','Type','First Visit','Diagnosis','Remarks'])
     for r in rows:
         writer.writerow([r['legacy_fileno'], r['name'], r['fh_name'], r['cnic'], r['age'],
-                         r['marital_status'], r['mobile_no'], r['city'], r['country'],
+                         r['marital_status'], r['mobile_no'], r['city'], r['country'], r['address'],
                          r['patient_type'], r['date_of_first_visit'], r['diagnosis'], r['remarks']])
     output.seek(0)
     return StreamingResponse(
@@ -123,15 +124,15 @@ def create_patient(body: PatientCreate, user=Security(require_role("doctor", "re
     cur  = conn.cursor()
     cur.execute("""
         INSERT INTO patients
-            (name, fh_name, cnic, age, marital_status, mobile_no, city, country,
+            (name, fh_name, cnic, age, marital_status, mobile_no, city, country, address,
              patient_type, consent_taken, consent_datetime,
              date_of_first_visit, know_patient_of, history, temperament,
              first_subscription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
         body.name, body.fh_name, body.cnic, body.age, body.marital_status, body.mobile_no,
-        body.city, body.country, body.patient_type, body.consent_taken,
+        body.city, body.country, body.address, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
         body.date_of_first_visit, body.know_patient_of, body.history,
         body.temperament, body.first_subscription, body.diagnosis,
