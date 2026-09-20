@@ -115,7 +115,8 @@ export default function PatientDetail() {
           <InfoItem label="Mobile" value={patient.mobile_no} icon={<Phone size={12} />} />
           <InfoItem label="CNIC" value={patient.cnic} />
           <InfoItem label="City" value={patient.city} icon={<MapPin size={12} />} />
-          <InfoItem label="Previous Medicine" value={visits.length ? visits[0].main_remedy : null} mono />
+          <InfoItem label="Latest Prescription" value={visits.length ? visits[0].main_remedy : null} mono />
+          <InfoItem label="Symptoms (latest visit)" value={visits.length ? visits[0].symptoms : null} />
           <InfoItem
             label="First Visit"
             value={patient.date_of_first_visit

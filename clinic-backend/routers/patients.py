@@ -120,6 +120,8 @@ def get_patient(patient_id: int, user=Security(get_current_user)):
 
 @router.post("/", status_code=201)
 def create_patient(body: PatientCreate, user=Security(require_role("doctor", "reception"))):
+    if body.patient_type == "online" and not (body.address and body.address.strip()):
+        raise HTTPException(status_code=400, detail="Postal address is required for online patients.")
     conn = get_conn()
     cur  = conn.cursor()
     cur.execute("""
@@ -151,6 +153,17 @@ def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_r
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
     if not fields:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    if "patient_type" in fields or "address" in fields:
+        cur.execute("SELECT patient_type, address FROM patients WHERE id = %s", (patient_id,))
+        existing = cur.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        effective_type    = fields.get("patient_type", existing["patient_type"])
+        effective_address = fields.get("address", existing["address"])
+        if effective_type == "online" and not (effective_address and effective_address.strip()):
+            raise HTTPException(status_code=400, detail="Postal address is required for online patients.")
+
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     set_clause += ", updated_by = %s, updated_at = NOW()"
     values = list(fields.values()) + [user["sub"], patient_id]

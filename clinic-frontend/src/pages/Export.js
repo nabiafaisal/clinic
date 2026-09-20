@@ -5,6 +5,8 @@ import api from '../utils/api';
 export default function Export() {
   const [loading, setLoading] = useState(false);
 
+  const [loadingVisits, setLoadingVisits] = useState(false);
+
   const downloadCSV = async () => {
     const isMock = localStorage.getItem('clinic_token')?.startsWith('mock-token-');
     setLoading(true);
@@ -41,6 +43,22 @@ export default function Export() {
     }
   };
 
+  const downloadVisitsCSV = async () => {
+    setLoadingVisits(true);
+    try {
+      const res = await api.get('/visits/export', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'visit_history_export.csv';
+      a.click();
+    } catch (e) {
+      alert('Export failed. Make sure backend is running.');
+    } finally {
+      setLoadingVisits(false);
+    }
+  };
+
   return (
     <div style={{ padding: '2rem', maxWidth: 560 }}>
       <h1 style={{ marginBottom: '0.5rem' }}>Export Data</h1>
@@ -69,9 +87,21 @@ export default function Export() {
         {loading ? 'Preparing export…' : 'Download Patients CSV'}
       </button>
 
-      <p style={{ fontSize: 12, color: 'var(--ink-lite)', marginTop: 12 }}>
+      <p style={{ fontSize: 12, color: 'var(--ink-lite)', marginTop: 12, marginBottom: 24 }}>
         To open in Microsoft Access: File → External Data → Import → Text File → select the CSV
       </p>
+
+      <hr style={{ margin: '24px 0', border: 'none', borderTop: '1px solid var(--border, #e5e2d9)' }} />
+
+      <h2 style={{ fontSize: 16, marginBottom: '0.5rem' }}>Visit History</h2>
+      <p style={{ color: 'var(--ink-lite)', marginBottom: '1.5rem' }}>
+        Download every visit ever recorded (symptoms, medicines, charges, doctor, outcome),
+        oldest to latest.
+      </p>
+      <button className="btn btn--sage" onClick={downloadVisitsCSV} disabled={loadingVisits}>
+        {loadingVisits ? <Loader2 size={15} className="spin" /> : <Download size={15} />}
+        {loadingVisits ? 'Preparing export…' : 'Download Visit History CSV'}
+      </button>
     </div>
   );
 }

@@ -59,6 +59,7 @@ export default function NewPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setError('Patient name is required.'); return; }
+    if (form.patient_type === 'online' && !form.address.trim()) { setError('Postal address is required for online patients (needed for medicine delivery).'); return; }
     setError('');
     setLoading(true);
     try {
@@ -181,8 +182,16 @@ export default function NewPatient() {
           </div>
 
           <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">Postal Address</label>
-            <textarea className="form-textarea" value={form.address} onChange={e => set('address', e.target.value)} rows={2} />
+            <label className="form-label">
+              Postal Address{form.patient_type === 'online' && <span style={{ color: '#c0392b' }}> *</span>}
+            </label>
+            <textarea
+              className="form-textarea"
+              value={form.address}
+              onChange={e => set('address', e.target.value)}
+              rows={2}
+              placeholder={form.patient_type === 'online' ? 'Required for online patients (medicine delivery)' : ''}
+            />
           </div>
 
           {/* Patient type & consent */}

@@ -2,6 +2,8 @@ import os
 import uuid
 import shutil
 from fastapi import APIRouter, HTTPException, Security, Query, UploadFile, File
+import csv
+import io
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -98,6 +100,47 @@ def list_visits(
     cur.close()
     conn.close()
     return rows
+
+# ── Export (must be before /{visit_id}) ───────────────────────────────────────
+
+@router.get("/export")
+def export_visits(user=Security(require_role("superadmin"))):
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("""
+        SELECT p.legacy_fileno, p.name AS patient_name, p.cnic, p.mobile_no,
+               v.visit_date, v.visit_mode, v.case_type, v.outcome, v.next_followup_date,
+               v.symptoms, v.physiology, v.pathology, v.sub_subscription, v.main_remedy,
+               v.medicine_duration, v.consultation_charge, v.medicine_charge, v.bill_charges,
+               v.doctor_name, v.doctor_reg_no, v.status, v.finding_notes
+        FROM visits v
+        JOIN patients p ON p.id = v.patient_id
+        WHERE v.is_deleted = FALSE
+        ORDER BY v.visit_date ASC NULLS FIRST, v.id ASC
+    """)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['File#','Patient Name','CNIC','Mobile','Visit Date','Visit Mode','Case Type',
+                     'Outcome','Next Follow-up','Symptoms','Physiology','Pathology','Sub-Subscription',
+                     'Main Remedy','Medicine Duration','Consultation Charge','Medicine Charge',
+                     'Total Bill','Doctor','Doctor Reg No.','Status','Finding Notes'])
+    for r in rows:
+        writer.writerow([r['legacy_fileno'], r['patient_name'], r['cnic'], r['mobile_no'],
+                         r['visit_date'], r['visit_mode'], r['case_type'], r['outcome'],
+                         r['next_followup_date'], r['symptoms'], r['physiology'], r['pathology'],
+                         r['sub_subscription'], r['main_remedy'], r['medicine_duration'],
+                         r['consultation_charge'], r['medicine_charge'], r['bill_charges'],
+                         r['doctor_name'], r['doctor_reg_no'], r['status'], r['finding_notes']])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="visit_history_export.csv"'}
+    )
 
 @router.get("/diary-summary")
 def diary_summary(user=Security(get_current_user)):

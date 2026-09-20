@@ -105,7 +105,7 @@ export default function PrintPrescription() {
           {patient.cnic && <div><span style={{ color: '#666' }}>CNIC: </span>{patient.cnic}</div>}
           <div><span style={{ color: '#666' }}>City: </span>{patient.city || '—'}</div>
           {patient.address && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Address: </span>{patient.address}</div>}
-          {previousMedicine && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Previous Medicine: </span>{previousMedicine}</div>}
+          {previousMedicine && <div style={{ gridColumn: '1/-1' }}><span style={{ color: '#666' }}>Previous Prescription: </span>{previousMedicine}</div>}
         </div>
       </div>
 
