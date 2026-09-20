@@ -64,6 +64,7 @@ export default function Dashboard() {
       setRecentVisits(visits.slice(0, 6));
       setLoading(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePick = async (id) => {
