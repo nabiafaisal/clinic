@@ -9,9 +9,9 @@ import './Layout.css';
 
 // Role-based nav — what each role can see
 const NAV_ITEMS = [
-  { to: '/',        icon: LayoutDashboard, label: 'Dashboard',      end: true,  roles: ['superadmin','admin','reception'] },
-  { to: '/patients',icon: Users,           label: 'Patients',                   roles: ['superadmin','admin','reception'] },
-  { to: '/diary',   icon: BookOpen,        label: 'Visit Diary',                roles: ['superadmin','reception'] },
+  { to: '/',        icon: LayoutDashboard, label: 'Dashboard',      end: true,  roles: ['superadmin','admin','reception','doctor'] },
+  { to: '/patients',icon: Users,           label: 'Patients',                   roles: ['superadmin','admin','reception','doctor'] },
+  { to: '/diary',   icon: BookOpen,        label: 'Visit Diary',                roles: ['superadmin','reception','doctor'] },
   { to: '/export',  icon: Download,        label: 'Export Data',                roles: ['superadmin'] },
   { to: '/users',   icon: Settings,        label: 'Manage Users',               roles: ['superadmin'] },
 ];
