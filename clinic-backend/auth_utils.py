@@ -8,6 +8,7 @@ import bcrypt
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formatdate, make_msgid
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -16,9 +17,10 @@ SECRET_KEY   = os.getenv("JWT_SECRET", "change-me-in-production")
 ALGORITHM    = "HS256"
 TOKEN_EXPIRY = 60 * 24  # 24 hours
 
-# Gmail SMTP (free, no sandbox/recipient restrictions like MailerSend's
-# trial domain). GMAIL_ADDRESS is the sending account; GMAIL_APP_PASSWORD is
-# a 16-character App Password generated from that account's Google settings
+# Gmail SMTP. Requires a PAID Render web service plan — Render's free tier
+# blocks outbound SMTP ports (25/465/587), which is why this needs the
+# upgrade. GMAIL_ADDRESS is the sending account; GMAIL_APP_PASSWORD is a
+# 16-character App Password generated from that account's Google settings
 # (requires 2-Step Verification to be on) — NOT the account's login password.
 GMAIL_ADDRESS      = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
@@ -44,24 +46,29 @@ async def verify_google_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid Google token")
     return resp.json()
 
-# ── OTP generation & email sending via Gmail SMTP (free) ─────────────────────
+# ── OTP generation & email sending via Gmail SMTP ─────────────────────────────
 
 def generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
 def send_email(to_email: str, subject: str, html: str, user_name: str = "", *, raise_on_failure: bool = True) -> bool:
-    """Sends via Gmail SMTP (smtplib), using an App Password. Returns
-    True/False on success when raise_on_failure=False, otherwise raises
-    HTTPException on failure."""
+    """Sends via Gmail SMTP (smtplib), using an App Password. Requires a paid
+    Render plan (free tier blocks outbound SMTP ports). Returns True/False on
+    success when raise_on_failure=False, otherwise raises HTTPException on
+    failure."""
     if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
         if raise_on_failure:
             raise HTTPException(status_code=500, detail="Gmail sender not configured (GMAIL_ADDRESS / GMAIL_APP_PASSWORD).")
         return False
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"{SENDER_NAME} <{GMAIL_ADDRESS}>"
-    msg["To"]      = to_email
+    msg["Subject"]    = subject
+    msg["From"]       = f"{SENDER_NAME} <{GMAIL_ADDRESS}>"
+    msg["To"]         = to_email
+    # Gmail's anti-spam rules reject/DKIM-fail messages missing these —
+    # Python's email library does NOT add them automatically.
+    msg["Date"]       = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain="gmail.com")
     msg.attach(MIMEText(html, "html"))
 
     try:
