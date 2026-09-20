@@ -13,7 +13,7 @@ app = FastAPI(title="Dr. Arshad Mahmood Clinic API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://clinic-fawn-beta.vercel.app",
+        "https://clinic-ivory-eight.vercel.app",
         "http://localhost:3000",
     ],
     allow_credentials=True,
