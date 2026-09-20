@@ -27,21 +27,15 @@ const COUNTRY_CODES = [
   ['+61',  '🇦🇺 +61 Australia'],
 ];
 
-function formatCnic(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 13);
-  const parts = [digits.slice(0, 5), digits.slice(5, 12), digits.slice(12, 13)].filter(Boolean);
-  return parts.join('-');
-}
-
 export default function NewPatient() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: '', fh_name: '', cnic: '', age: '', dob: '', marital_status: '',
+    name: '', fh_name: '', age: '', dob: '', marital_status: '',
     mobile_code: '+92', mobile_no: '',
     city: '', country: 'Pakistan', address: '',
     patient_type: 'in-clinic', consent_taken: false,
     know_patient_of: '', history: '', temperament: '',
-    first_subscription: '', remarks: '',
+    first_subscription: '', diagnosis: '', remarks: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -59,7 +53,6 @@ export default function NewPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) { setError('Patient name is required.'); return; }
-    if (form.patient_type === 'online' && !form.address.trim()) { setError('Postal address is required for online patients (needed for medicine delivery).'); return; }
     setError('');
     setLoading(true);
     try {
@@ -99,7 +92,7 @@ export default function NewPatient() {
 
           {/* Basic info */}
           <p className="form-section-title">Basic Information</p>
-          <div className="form-row">
+          <div className="form-row" style={{ marginBottom: 16 }}>
             <div className="form-group">
               <label className="form-label">Full Name *</label>
               <input className="form-input" value={form.name} onChange={e => set('name', e.target.value)} required />
@@ -110,20 +103,7 @@ export default function NewPatient() {
             </div>
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">CNIC #</label>
-              <input
-                className="form-input mono"
-                value={form.cnic}
-                maxLength={15}
-                placeholder="XXXXX-XXXXXXX-X"
-                onChange={e => set('cnic', formatCnic(e.target.value))}
-              />
-            </div>
-          </div>
-
-          <div className="form-row form-row--3">
+          <div className="form-row form-row--3" style={{ marginBottom: 16 }}>
             <div className="form-group">
               <label className="form-label">Date of Birth</label>
               <input
@@ -148,10 +128,10 @@ export default function NewPatient() {
             </div>
             <div className="form-group">
               <label className="form-label">Mobile Number</label>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <select
                   className="form-select"
-                  style={{ maxWidth: 130, flexShrink: 0 }}
+                  style={{ width: 110, flexShrink: 0 }}
                   value={form.mobile_code}
                   onChange={e => set('mobile_code', e.target.value)}
                 >
@@ -165,12 +145,13 @@ export default function NewPatient() {
                   placeholder="3XX-XXXXXXX"
                   value={form.mobile_no}
                   onChange={e => set('mobile_no', e.target.value)}
+                  style={{ flex: 1, minWidth: 140 }}
                 />
               </div>
             </div>
           </div>
 
-          <div className="form-row">
+          <div className="form-row" style={{ marginBottom: 20 }}>
             <div className="form-group">
               <label className="form-label">City</label>
               <input className="form-input" value={form.city} onChange={e => set('city', e.target.value)} />
@@ -181,21 +162,8 @@ export default function NewPatient() {
             </div>
           </div>
 
-          <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">
-              Postal Address{form.patient_type === 'online' && <span style={{ color: '#c0392b' }}> *</span>}
-            </label>
-            <textarea
-              className="form-textarea"
-              value={form.address}
-              onChange={e => set('address', e.target.value)}
-              rows={2}
-              placeholder={form.patient_type === 'online' ? 'Required for online patients (medicine delivery)' : ''}
-            />
-          </div>
-
           {/* Patient type & consent */}
-          <p className="form-section-title">Consultation Type</p>
+          <p className="form-section-title" style={{ marginTop: 4 }}>Consultation Type</p>
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Patient Type</label>
@@ -240,7 +208,7 @@ export default function NewPatient() {
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">First Remedy / Subscription</label>
+              <label className="form-label">First Prescription</label>
               <input className="form-input mono" value={form.first_subscription} onChange={e => set('first_subscription', e.target.value)} placeholder="e.g. Sulph 200" />
             </div>
           </div>
@@ -248,6 +216,11 @@ export default function NewPatient() {
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">History</label>
             <textarea className="form-textarea" value={form.history} onChange={e => set('history', e.target.value)} rows={3} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Diagnosis</label>
+            <textarea className="form-textarea" value={form.diagnosis} onChange={e => set('diagnosis', e.target.value)} rows={2} />
           </div>
 
           <div className="form-group" style={{ marginBottom: 20 }}>
