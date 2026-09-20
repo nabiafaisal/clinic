@@ -10,36 +10,13 @@ export default function Login() {
   const { login } = useAuth();
   const navigate  = useNavigate();
 
-  const [step, setStep]       = useState('login');    // 'login' | 'otp'
-  const [method, setMethod]   = useState('password'); // 'password' | 'google' | 'email'
-  const [email, setEmail]     = useState('');
-  const [password, setPassword] = useState('');
-  const [otp, setOtp]         = useState('');
+  const [step, setStep]         = useState('login'); // 'login' | 'otp'
+  const [otp, setOtp]           = useState('');
   const [otpEmail, setOtpEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
 
-  // ── Password login ─────────────────────────────────────────────────────────
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    if (!email.trim() || !password) { setError('Enter your email and password.'); return; }
-    setError('');
-    setLoading(true);
-    try {
-      const res = await api.post('/auth/login', {
-        email: email.trim(),
-        password,
-      });
-      login(res.data.user, res.data.access_token);
-      navigate('/');
-    } catch (e) {
-      setError(e.response?.data?.detail || 'Incorrect email or password.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Step 1a: Google login ──────────────────────────────────────────────────
+  // ── Google sign-in → sends OTP ─────────────────────────────────────────────
   const handleGoogleSuccess = async (credentialResponse) => {
     setError('');
     setLoading(true);
@@ -56,24 +33,7 @@ export default function Login() {
     }
   };
 
-  // ── Step 1b: Email login ───────────────────────────────────────────────────
-  const handleEmailSubmit = async (e) => {
-    e.preventDefault();
-    if (!email.trim()) { setError('Enter your phone number.'); return; }
-    setError('');
-    setLoading(true);
-    try {
-      const res = await api.post('/auth/request-otp', { email: email.trim() });
-      setOtpEmail(res.data.email);
-      setStep('otp');
-    } catch (e) {
-      setError(e.response?.data?.detail || 'No account found with this email.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Step 2: Verify OTP ─────────────────────────────────────────────────────
+  // ── Verify OTP ──────────────────────────────────────────────────────────────
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
     if (otp.length !== 6) { setError('Enter the 6-digit OTP.'); return; }
@@ -163,101 +123,27 @@ export default function Login() {
           </form>
         )}
 
-        {/* ── Login step ── */}
+        {/* ── Login step: Google only ── */}
         {step === 'login' && (
           <>
-            {/* Tab selector */}
-            <div style={{ display: 'flex', gap: 0, marginBottom: 20, border: '1.5px solid var(--border, #e5e2d9)', borderRadius: 8, overflow: 'hidden' }}>
-              {['password', 'google', 'email'].map(m => (
-                <button
-                  key={m}
-                  onClick={() => { setMethod(m); setError(''); }}
-                  style={{
-                    flex: 1, padding: '9px 0', border: 'none', cursor: 'pointer',
-                    fontSize: 13, fontWeight: 500, fontFamily: 'inherit',
-                    background: method === m ? 'var(--sage, #2d6a4f)' : 'transparent',
-                    color: method === m ? '#fff' : 'var(--ink-mid)',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  {m === 'password' ? '🔑 Password' : m === 'google' ? '🔵 Google' : '📱 Phone'}
-                </button>
-              ))}
-            </div>
-
-            {method === 'password' && (
-              <form onSubmit={handlePasswordSubmit}>
-                <div className="form-group" style={{ marginBottom: 14 }}>
-                  <label className="form-label">Email</label>
-                  <input
-                    className="form-input"
-                    type="email"
-                    placeholder="you@clinic.com"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    autoFocus
-                  />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '8px 0 4px' }}>
+              {loading ? (
+                <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                  <Loader2 size={24} className="spin" style={{ color: 'var(--sage)' }} />
+                  <p style={{ marginTop: 8, color: 'var(--ink-lite)', fontSize: 13 }}>Sending OTP…</p>
                 </div>
-                <div className="form-group" style={{ marginBottom: 14 }}>
-                  <label className="form-label">Password</label>
-                  <input
-                    className="form-input"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                  />
-                </div>
-                <button type="submit" className="btn btn--sage" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading}>
-                  {loading ? <Loader2 size={16} className="spin" /> : null}
-                  {loading ? 'Signing in…' : 'Sign In'}
-                </button>
-                <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-lite)', marginTop: 10 }}>
-                  Forgot your password? Ask the clinic admin to reset it for you.
-                </p>
-              </form>
-            )}
-
-            {method === 'google' && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                {loading ? (
-                  <div style={{ padding: '20px 0', textAlign: 'center' }}>
-                    <Loader2 size={24} className="spin" style={{ color: 'var(--sage)' }} />
-                    <p style={{ marginTop: 8, color: 'var(--ink-lite)', fontSize: 13 }}>Sending OTP…</p>
-                  </div>
-                ) : (
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => setError('Google sign-in failed. Please try again.')}
-                    useOneTap
-                    theme="outline"
-                    size="large"
-                    text="signin_with"
-                    shape="rectangular"
-                  />
-                )}
-              </div>
-            )}
-
-            {method === 'email' && (
-              <form onSubmit={handleEmailSubmit}>
-                <div className="form-group" style={{ marginBottom: 14 }}>
-                  <label className="form-label">Registered Phone Number</label>
-              <input
-              className="form-input"
-                type="tel"
-                  placeholder="+923001234567"
-                    value={email}
-                      onChange={e => setEmail(e.target.value)}
-                        autoFocus
+              ) : (
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('Google sign-in failed. Please try again.')}
+                  useOneTap
+                  theme="outline"
+                  size="large"
+                  text="signin_with"
+                  shape="rectangular"
                 />
-                </div>
-                <button type="submit" className="btn btn--sage" style={{ width: '100%', justifyContent: 'center', padding: 12 }} disabled={loading}>
-                  {loading ? <Loader2 size={16} className="spin" /> : null}
-                  {loading ? 'Sending OTP…' : 'Send OTP'}
-                </button>
-              </form>
-            )}
+              )}
+            </div>
 
             {error && <div className="login-error" style={{ marginTop: 12 }}>{error}</div>}
 
