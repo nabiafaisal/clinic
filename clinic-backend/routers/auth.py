@@ -39,12 +39,11 @@ async def google_login(body: GoogleLoginRequest):
     user = cur.fetchone()
 
     if not user:
-        cur.execute(
-            "INSERT INTO users (email, name, role) VALUES (%s, %s, 'reception') RETURNING id, email, role, is_active, name",
-            (email, name)
+        cur.close(); conn.close()
+        raise HTTPException(
+            status_code=403,
+            detail="No staff account found for this email. Ask the clinic admin to add you first."
         )
-        user = cur.fetchone()
-        conn.commit()
 
     if not user["is_active"]:
         cur.close(); conn.close()
