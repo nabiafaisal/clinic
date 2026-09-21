@@ -78,8 +78,11 @@ export default function EditPatient() {
         consent_taken: d.consent_taken || false,
         date_of_first_visit: d.date_of_first_visit ? d.date_of_first_visit.slice(0, 10) : '',
         know_patient_of: d.know_patient_of || '',
-        history: d.history || '', temperament: d.temperament || '',
+        main_complaint: d.main_complaint || '',
+        history: d.history || '', family_history: d.family_history || '',
+        temperament: d.temperament || '',
         first_subscription: d.first_subscription || '',
+        latest_prescription: d.latest_prescription || '',
         remarks: d.remarks || '',
       });
       setLoading(false);
@@ -259,9 +262,23 @@ export default function EditPatient() {
         <div className="section-card">
           <div className="section-label">Medical Background</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <F label="Temperament" field="temperament" />
             <div className="form-group">
-              <label className="form-label">Symptoms (latest visit)</label>
+              <label className="form-label">Main Complaint</label>
+              <textarea className="form-input" rows={2} value={form.main_complaint} onChange={e => set('main_complaint', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">History</label>
+              <textarea className="form-input" rows={3} value={form.history} onChange={e => set('history', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Family History</label>
+              <textarea className="form-input" rows={3} value={form.family_history} onChange={e => set('family_history', e.target.value)} />
+            </div>
+            <F label="Temperament" field="temperament" />
+            <F label="First Prescription" field="first_subscription" />
+            <F label="Latest Prescription" field="latest_prescription" />
+            <div className="form-group">
+              <label className="form-label">Symptoms (most recent visit)</label>
               <textarea
                 className="form-input"
                 rows={2}
@@ -269,24 +286,10 @@ export default function EditPatient() {
                 readOnly
                 style={{ background: '#f4f4f4', color: latestVisit?.symptoms ? '#222' : '#999' }}
               />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Latest Prescription</label>
-              <input
-                className="form-input mono"
-                value={latestVisit?.main_remedy || 'No prior visit on record'}
-                readOnly
-                style={{ background: '#f4f4f4', color: latestVisit?.main_remedy ? '#222' : '#999' }}
-              />
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                Both auto-filled from the patient's most recent visit and update automatically as new visits are added.
+                Read-only — pulled from the patient's most recent visit record.
               </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">History</label>
-              <textarea className="form-input" rows={3} value={form.history} onChange={e => set('history', e.target.value)} />
-            </div>
-            <F label="First Subscription" field="first_subscription" />
             <div className="form-group">
               <label className="form-label">Remarks</label>
               <textarea className="form-input" rows={3} value={form.remarks} onChange={e => set('remarks', e.target.value)} />

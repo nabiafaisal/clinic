@@ -63,7 +63,7 @@ useEffect(() => { fetchPatients(search, page); }, [page]);
           <h1 className="page-title">Patients</h1>
           <p className="page-subtitle">{total.toLocaleString()} records</p>
         </div>
-        {(user?.role === 'superadmin' || user?.role === 'admin') && (
+        {['superadmin', 'admin', 'reception', 'doctor'].includes(user?.role) && (
   <Link to="/patients/new" className="btn btn--sage btn--sm">
     <UserPlus size={14} /> New Patient
   </Link>
@@ -76,7 +76,7 @@ useEffect(() => { fetchPatients(search, page); }, [page]);
           <Search size={15} className="search-bar__icon" />
           <input
             className="search-bar__input"
-            placeholder="Search by name, father's name, or mobile…"
+            placeholder="Search by name, father's name, mobile, or patient ID…"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />

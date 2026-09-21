@@ -97,7 +97,7 @@ export default function Dashboard() {
       <div className="dashboard__hero">
         <div>
           <p className="dashboard__greeting">{greeting()},</p>
-          <h1 className="dashboard__name">{user?.name || user?.email}</h1>
+          <h1 className="dashboard__name">Al-Moalij Homoeo Clinic</h1>
           <p className="dashboard__date">{today}</p>
         </div>
         <Link to="/patients/new" className="btn btn--sage">

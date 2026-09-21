@@ -27,14 +27,21 @@ const COUNTRY_CODES = [
   ['+61',  '🇦🇺 +61 Australia'],
 ];
 
+function formatCnic(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 13);
+  const parts = [digits.slice(0, 5), digits.slice(5, 12), digits.slice(12, 13)].filter(Boolean);
+  return parts.join('-');
+}
+
 export default function NewPatient() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    name: '', fh_name: '', age: '', dob: '', marital_status: '',
+    name: '', fh_name: '', age: '', dob: '', cnic: '', marital_status: '',
     mobile_code: '+92', mobile_no: '',
     city: '', country: 'Pakistan', address: '',
     patient_type: 'in-clinic', consent_taken: false,
-    know_patient_of: '', history: '', temperament: '',
+    know_patient_of: '', main_complaint: '', history: '', family_history: '',
+    temperament: '', temperament_custom: '',
     first_subscription: '', latest_prescription: '', remarks: '',
   });
   const [loading, setLoading] = useState(false);
@@ -61,6 +68,11 @@ export default function NewPatient() {
       if (payload.mobile_no) {
         payload.mobile_no = `${payload.mobile_code} ${payload.mobile_no}`;
       }
+      // temperament: either a picked option, or whatever was typed in "custom"
+      payload.temperament = payload.temperament === 'custom'
+        ? payload.temperament_custom
+        : payload.temperament;
+      delete payload.temperament_custom;
       delete payload.mobile_code;
       delete payload.dob;
       payload.date_of_first_visit = new Date().toISOString().slice(0, 10);
@@ -120,12 +132,25 @@ export default function NewPatient() {
               )}
             </div>
             <div className="form-group">
+              <label className="form-label">CNIC #</label>
+              <input
+                className="form-input mono"
+                value={form.cnic}
+                maxLength={15}
+                placeholder="XXXXX-XXXXXXX-X"
+                onChange={e => set('cnic', formatCnic(e.target.value))}
+              />
+            </div>
+            <div className="form-group">
               <label className="form-label">Marital Status</label>
               <select className="form-select" value={form.marital_status} onChange={e => set('marital_status', e.target.value)}>
                 <option value="">— Select —</option>
                 {MARITAL_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
+          </div>
+
+          <div className="form-row form-row--3" style={{ marginBottom: 16 }}>
             <div className="form-group">
               <label className="form-label">Mobile Number</label>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -149,9 +174,6 @@ export default function NewPatient() {
                 />
               </div>
             </div>
-          </div>
-
-          <div className="form-row form-row--3" style={{ marginBottom: 20 }}>
             <div className="form-group">
               <label className="form-label">City</label>
               <input className="form-input" value={form.city} onChange={e => set('city', e.target.value)} />
@@ -159,6 +181,21 @@ export default function NewPatient() {
             <div className="form-group">
               <label className="form-label">Country</label>
               <input className="form-input" value={form.country} onChange={e => set('country', e.target.value)} />
+            </div>
+          </div>
+
+          <div className="form-row" style={{ marginBottom: 20 }}>
+            <div className="form-group">
+              <label className="form-label">
+                Postal Address{form.patient_type === 'online' && <span style={{ color: '#c0392b' }}> *</span>}
+              </label>
+              <textarea
+                className="form-textarea"
+                rows={2}
+                value={form.address}
+                onChange={e => set('address', e.target.value)}
+                placeholder={form.patient_type === 'online' ? 'Required for online patients (medicine delivery)' : ''}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Known Patient Of</label>
@@ -197,15 +234,42 @@ export default function NewPatient() {
             </div>
           )}
 
-          {/* Medical info */}
+          {/* Medical info — history first, then prescriptions */}
           <p className="form-section-title">Medical Information</p>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Main Complaint</label>
+            <textarea className="form-textarea" value={form.main_complaint} onChange={e => set('main_complaint', e.target.value)} rows={2} placeholder="What is the patient presenting with?" />
+          </div>
+
+          <div className="form-row" style={{ marginBottom: 12 }}>
+            <div className="form-group">
+              <label className="form-label">History</label>
+              <textarea className="form-textarea" value={form.history} onChange={e => set('history', e.target.value)} rows={3} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Family History</label>
+              <textarea className="form-textarea" value={form.family_history} onChange={e => set('family_history', e.target.value)} rows={3} />
+            </div>
+          </div>
+
           <div className="form-row form-row--3">
             <div className="form-group">
               <label className="form-label">Temperament</label>
               <select className="form-select" value={form.temperament} onChange={e => set('temperament', e.target.value)}>
                 <option value="">— Select —</option>
                 {TEMPERAMENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                <option value="custom">Type custom…</option>
               </select>
+              {form.temperament === 'custom' && (
+                <input
+                  className="form-input"
+                  style={{ marginTop: 6 }}
+                  placeholder="Describe temperament"
+                  value={form.temperament_custom}
+                  onChange={e => set('temperament_custom', e.target.value)}
+                />
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">First Prescription</label>
@@ -217,12 +281,7 @@ export default function NewPatient() {
             </div>
           </div>
 
-          <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">History</label>
-            <textarea className="form-textarea" value={form.history} onChange={e => set('history', e.target.value)} rows={3} />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 20 }}>
+          <div className="form-group" style={{ marginTop: 12, marginBottom: 20 }}>
             <label className="form-label">Remarks</label>
             <textarea className="form-textarea" value={form.remarks} onChange={e => set('remarks', e.target.value)} rows={2} />
           </div>

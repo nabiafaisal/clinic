@@ -59,6 +59,18 @@ export default function PatientDetail() {
     }).catch(() => { setLoading(false); });
   }, [id]);
 
+  const handleDeletePatient = async () => {
+    if (!window.confirm(
+      `Permanently delete ${patient.name}? This also deletes ALL of their visit history and uploaded files. This cannot be undone.`
+    )) return;
+    try {
+      await api.delete(`/patients/${id}`);
+      navigate('/patients');
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to delete patient');
+    }
+  };
+
   const handleFinalize = async (visitId) => {
     if (!window.confirm('Finalize this visit? It will be locked for editing.')) return;
     try {
@@ -76,7 +88,8 @@ export default function PatientDetail() {
   );
   if (!patient) return <div className="empty-text">Patient not found.</div>;
 
-  const canEdit = user?.role === 'doctor' || user?.role === 'reception';
+  const canEdit = ['superadmin', 'admin', 'doctor', 'reception'].includes(user?.role);
+  const canDelete = user?.role === 'superadmin';
   const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
   return (
@@ -102,6 +115,15 @@ export default function PatientDetail() {
             <Link to={`/patients/${id}/visits/new`} className="btn btn--sage">
               <PlusCircle size={14} /> New Visit
             </Link>
+            {canDelete && (
+              <button
+                className="btn btn--ghost btn--sm"
+                style={{ color: '#c0392b' }}
+                onClick={handleDeletePatient}
+              >
+                🗑️ Delete Patient
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -126,11 +148,13 @@ export default function PatientDetail() {
           />
           {patient.know_patient_of && <InfoItem label="Referred by" value={patient.know_patient_of} />}
           {patient.temperament && <InfoItem label="Temperament" value={patient.temperament} />}
-          {patient.first_subscription && <InfoItem label="First Remedy" value={patient.first_subscription} mono />}
+          {patient.first_subscription && <InfoItem label="First Prescription" value={patient.first_subscription} mono />}
         </div>
-        {patient.address  && <div className="patient-history"><span className="patient-history__label">Postal Address</span><p>{patient.address}</p></div>}
-        {patient.history  && <div className="patient-history"><span className="patient-history__label">History</span><p>{patient.history}</p></div>}
-        {patient.remarks  && <div className="patient-history"><span className="patient-history__label">Remarks</span><p>{patient.remarks}</p></div>}
+        {patient.address        && <div className="patient-history"><span className="patient-history__label">Postal Address</span><p>{patient.address}</p></div>}
+        {patient.main_complaint && <div className="patient-history"><span className="patient-history__label">Main Complaint</span><p>{patient.main_complaint}</p></div>}
+        {patient.history        && <div className="patient-history"><span className="patient-history__label">History</span><p>{patient.history}</p></div>}
+        {patient.family_history && <div className="patient-history"><span className="patient-history__label">Family History</span><p>{patient.family_history}</p></div>}
+        {patient.remarks        && <div className="patient-history"><span className="patient-history__label">Remarks</span><p>{patient.remarks}</p></div>}
       </div>
 
       {/* Visit history */}

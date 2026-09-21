@@ -16,15 +16,19 @@ class PatientCreate(BaseModel):
     name:                str
     fh_name:             Optional[str] = None
     age:                 Optional[str] = None
+    cnic:                Optional[str] = None
     marital_status:      Optional[str] = None
     mobile_no:           Optional[str] = None
     city:                Optional[str] = None
     country:             Optional[str] = None
+    address:             Optional[str] = None
     patient_type:        Optional[str] = "in-clinic"
     consent_taken:       Optional[bool] = False
     date_of_first_visit: Optional[date] = None
     know_patient_of:     Optional[str] = None
+    main_complaint:      Optional[str] = None
     history:             Optional[str] = None
+    family_history:      Optional[str] = None
     temperament:         Optional[str] = None
     first_subscription:  Optional[str] = None
     latest_prescription: Optional[str] = None
@@ -49,8 +53,11 @@ def list_patients(
     where = []
     params = []
     if search:
-        where.append("(name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s)")
-        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
+        where.append("""(
+            name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s
+            OR legacy_fileno ILIKE %s OR CAST(id AS TEXT) = %s
+        )""")
+        params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%", search.strip()]
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
     cur.execute(f"""
@@ -121,18 +128,18 @@ def create_patient(body: PatientCreate, user=Security(require_role("superadmin",
     cur  = conn.cursor()
     cur.execute("""
         INSERT INTO patients
-            (name, fh_name, age, marital_status, mobile_no, city, country,
+            (name, fh_name, age, cnic, marital_status, mobile_no, city, country, address,
              patient_type, consent_taken, consent_datetime,
-             date_of_first_visit, know_patient_of, history, temperament,
-             first_subscription, latest_prescription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+             date_of_first_visit, know_patient_of, main_complaint, history, family_history,
+             temperament, first_subscription, latest_prescription, diagnosis, remarks, created_by)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
-        body.name, body.fh_name, body.age, body.marital_status, body.mobile_no,
-        body.city, body.country, body.patient_type, body.consent_taken,
+        body.name, body.fh_name, body.age, body.cnic, body.marital_status, body.mobile_no,
+        body.city, body.country, body.address, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
-        body.date_of_first_visit, body.know_patient_of, body.history,
-        body.temperament, body.first_subscription, body.latest_prescription,
+        body.date_of_first_visit, body.know_patient_of, body.main_complaint, body.history,
+        body.family_history, body.temperament, body.first_subscription, body.latest_prescription,
         body.diagnosis, body.remarks, user["sub"]
     ))
     row = cur.fetchone()
@@ -142,7 +149,7 @@ def create_patient(body: PatientCreate, user=Security(require_role("superadmin",
     return row
 
 @router.patch("/{patient_id}")
-def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("superadmin", "admin", "reception"))):
+def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("superadmin", "admin", "reception", "doctor"))):
     conn = get_conn()
     cur  = conn.cursor()
     fields = {k: v for k, v in body.model_dump(exclude_none=True).items()}
@@ -159,6 +166,40 @@ def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_r
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
     return row
+
+@router.delete("/{patient_id}")
+def delete_patient(patient_id: int, user=Security(require_role("superadmin"))):
+    """Permanently deletes a patient AND all of their visit history/uploads.
+    This cannot be undone — the frontend confirms with the user before
+    calling this."""
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
+    if not cur.fetchone():
+        cur.close(); conn.close()
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    cur.execute("SELECT id, file_url FROM visit_uploads WHERE visit_id IN (SELECT id FROM visits WHERE patient_id = %s)", (patient_id,))
+    uploads = cur.fetchall()
+
+    cur.execute("DELETE FROM visit_uploads WHERE visit_id IN (SELECT id FROM visits WHERE patient_id = %s)", (patient_id,))
+    cur.execute("DELETE FROM visits WHERE patient_id = %s", (patient_id,))
+    cur.execute("DELETE FROM patients WHERE id = %s", (patient_id,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    # Best-effort cleanup of uploaded files on disk (not critical if it fails)
+    import os
+    for u in uploads:
+        try:
+            path = u["file_url"].lstrip("/")
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
+
+    return {"message": "Patient and all their visit history permanently deleted"}
 
 @router.get("/{patient_id}/visits")
 def get_patient_visits(patient_id: int, user=Security(get_current_user)):
