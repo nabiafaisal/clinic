@@ -53,11 +53,16 @@ def list_patients(
     where = []
     params = []
     if search:
-        where.append("""(
-            name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s
-            OR legacy_fileno ILIKE %s OR CAST(id AS TEXT) = %s
-        )""")
-        params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%", search.strip()]
+        s = search.strip()
+        if s.isdigit():
+            # Numeric search = looking up a specific patient ID/file number.
+            # Exact match only — otherwise "12" would also match 120, 1200,
+            # 212, any mobile number containing "12", etc.
+            where.append("(legacy_fileno = %s OR id = %s)")
+            params += [int(s), int(s)]
+        else:
+            where.append("(name ILIKE %s OR mobile_no ILIKE %s OR fh_name ILIKE %s)")
+            params += [f"%{s}%", f"%{s}%", f"%{s}%"]
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
     cur.execute(f"""
@@ -126,16 +131,24 @@ def get_patient(patient_id: int, user=Security(get_current_user)):
 def create_patient(body: PatientCreate, user=Security(require_role("superadmin", "admin", "reception", "doctor"))):
     conn = get_conn()
     cur  = conn.cursor()
+
+    # New patients don't come with a legacy file number, but the internal
+    # `id` column's counter is way out of sync with your real numbering
+    # (leftover from old test data) — so instead of falling back to a
+    # 5-digit internal id, continue your real file-number sequence.
+    cur.execute("SELECT COALESCE(MAX(legacy_fileno), 0) AS max_fileno FROM patients")
+    next_fileno = cur.fetchone()["max_fileno"] + 1
+
     cur.execute("""
         INSERT INTO patients
-            (name, fh_name, age, cnic, marital_status, mobile_no, city, country, address,
+            (legacy_fileno, name, fh_name, age, cnic, marital_status, mobile_no, city, country, address,
              patient_type, consent_taken, consent_datetime,
              date_of_first_visit, know_patient_of, main_complaint, history, family_history,
              temperament, first_subscription, latest_prescription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
-        body.name, body.fh_name, body.age, body.cnic, body.marital_status, body.mobile_no,
+        next_fileno, body.name, body.fh_name, body.age, body.cnic, body.marital_status, body.mobile_no,
         body.city, body.country, body.address, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
         body.date_of_first_visit, body.know_patient_of, body.main_complaint, body.history,
