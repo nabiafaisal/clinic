@@ -70,7 +70,7 @@ export default function EditPatient() {
       const { code, number } = splitMobile(d.mobile_no);
       setForm({
         name: d.name || '', fh_name: d.fh_name || '', cnic: d.cnic || '',
-        age: d.age || '', dob: '',
+        age: d.age || '', dob: d.dob ? d.dob.slice(0, 10) : '',
         marital_status: d.marital_status || '',
         mobile_code: code, mobile_no: number,
         city: d.city || '', country: d.country || '', address: d.address || '',
@@ -119,7 +119,8 @@ export default function EditPatient() {
         payload.mobile_no = `${payload.mobile_code} ${payload.mobile_no}`;
       }
       delete payload.mobile_code;
-      delete payload.dob;
+      // Keep dob (if set) — backend uses it to auto-update displayed age.
+      if (!payload.dob) delete payload.dob;
       await api.patch(`/patients/${id}`, payload);
       toast.success('Patient updated!');
       navigate(`/patients/${id}`);

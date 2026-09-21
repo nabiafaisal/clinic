@@ -16,6 +16,7 @@ class PatientCreate(BaseModel):
     name:                str
     fh_name:             Optional[str] = None
     age:                 Optional[str] = None
+    dob:                 Optional[date] = None
     cnic:                Optional[str] = None
     marital_status:      Optional[str] = None
     mobile_no:           Optional[str] = None
@@ -37,6 +38,17 @@ class PatientCreate(BaseModel):
 
 class PatientUpdate(PatientCreate):
     name: Optional[str] = None
+
+def _with_live_age(row):
+    """If a patient has a date of birth on file, replace the static
+    'age at first visit' text with their real current age — so it keeps
+    ticking up every year instead of staying frozen forever."""
+    if row and row.get("dob"):
+        today = date.today()
+        dob = row["dob"]
+        years = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        row["age"] = f"{years} yrs"
+    return row
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -66,14 +78,14 @@ def list_patients(
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
 
     cur.execute(f"""
-        SELECT id, legacy_fileno, name, fh_name, age, marital_status,
+        SELECT id, legacy_fileno, name, fh_name, age, dob, marital_status,
                mobile_no, city, patient_type, date_of_first_visit, diagnosis,
                created_at
         FROM patients
         {where_clause}
         ORDER BY id DESC LIMIT %s OFFSET %s
     """, params + [limit, skip])
-    rows = cur.fetchall()
+    rows = [_with_live_age(r) for r in cur.fetchall()]
 
     cur.execute(f"SELECT COUNT(*) as total FROM patients {where_clause}", params)
     total = cur.fetchone()["total"]
@@ -125,7 +137,7 @@ def get_patient(patient_id: int, user=Security(get_current_user)):
     conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return row
+    return _with_live_age(row)
 
 @router.post("/", status_code=201)
 def create_patient(body: PatientCreate, user=Security(require_role("superadmin", "admin", "reception", "doctor"))):
@@ -141,14 +153,14 @@ def create_patient(body: PatientCreate, user=Security(require_role("superadmin",
 
     cur.execute("""
         INSERT INTO patients
-            (legacy_fileno, name, fh_name, age, cnic, marital_status, mobile_no, city, country, address,
+            (legacy_fileno, name, fh_name, age, dob, cnic, marital_status, mobile_no, city, country, address,
              patient_type, consent_taken, consent_datetime,
              date_of_first_visit, know_patient_of, main_complaint, history, family_history,
              temperament, first_subscription, latest_prescription, diagnosis, remarks, created_by)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING *
     """, (
-        next_fileno, body.name, body.fh_name, body.age, body.cnic, body.marital_status, body.mobile_no,
+        next_fileno, body.name, body.fh_name, body.age, body.dob, body.cnic, body.marital_status, body.mobile_no,
         body.city, body.country, body.address, body.patient_type, body.consent_taken,
         "NOW()" if body.consent_taken else None,
         body.date_of_first_visit, body.know_patient_of, body.main_complaint, body.history,
@@ -159,7 +171,7 @@ def create_patient(body: PatientCreate, user=Security(require_role("superadmin",
     conn.commit()
     cur.close()
     conn.close()
-    return row
+    return _with_live_age(row)
 
 @router.patch("/{patient_id}")
 def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_role("superadmin", "admin", "reception", "doctor"))):
@@ -178,7 +190,7 @@ def update_patient(patient_id: int, body: PatientUpdate, user=Security(require_r
     conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return row
+    return _with_live_age(row)
 
 @router.delete("/{patient_id}")
 def delete_patient(patient_id: int, user=Security(require_role("superadmin"))):

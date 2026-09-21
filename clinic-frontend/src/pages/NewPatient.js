@@ -74,7 +74,10 @@ export default function NewPatient() {
         : payload.temperament;
       delete payload.temperament_custom;
       delete payload.mobile_code;
-      delete payload.dob;
+      // Keep dob (if entered) — the backend uses it to auto-update the
+      // patient's displayed age every year instead of it staying frozen
+      // at whatever it was on the day of registration.
+      if (!payload.dob) delete payload.dob;
       payload.date_of_first_visit = new Date().toISOString().slice(0, 10);
       payload.consent_datetime = form.consent_taken ? new Date().toISOString() : null;
 
