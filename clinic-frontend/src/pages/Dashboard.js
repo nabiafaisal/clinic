@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import {
   Users, Calendar, TrendingUp, UserPlus, ArrowRight, Loader2, Bell, Check
@@ -8,7 +7,6 @@ import {
 import './Dashboard.css';
 
 export default function Dashboard() {
-  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [recentVisits, setRecentVisits] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
