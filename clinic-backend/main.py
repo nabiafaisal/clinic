@@ -15,6 +15,8 @@ app.add_middleware(
     allow_origins=[
         "https://clinic-fawn-beta.vercel.app",
         "https://clinic-ivory-eight.vercel.app",
+        "https://al-moalij.com",
+        "https://www.al-moalij.com",
         "http://localhost:3000",
     ],
     # Vercel gives every deploy of this project its own *-something.vercel.app

@@ -16,8 +16,16 @@
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS dob DATE;
 
 UPDATE patients
-SET dob = (date_of_first_visit - (CAST(regexp_replace(age, '[^0-9]', '', 'g') AS INT) || ' years')::interval)::date
-WHERE dob IS NULL
-  AND date_of_first_visit IS NOT NULL
-  AND age ~ '[0-9]+'
-  AND regexp_replace(age, '[^0-9]', '', 'g') <> '';
+SET dob = (date_of_first_visit - (sub.age_years || ' years')::interval)::date
+FROM (
+    SELECT id,
+           -- take only the FIRST run of digits in the age text (avoids
+           -- garbled/garbage entries combining into an absurd number)
+           CAST(substring(age FROM '[0-9]+') AS INT) AS age_years
+    FROM patients
+    WHERE age ~ '[0-9]+'
+) sub
+WHERE patients.id = sub.id
+  AND patients.dob IS NULL
+  AND patients.date_of_first_visit IS NOT NULL
+  AND sub.age_years BETWEEN 0 AND 120;  -- sanity bound, skips garbage rows
