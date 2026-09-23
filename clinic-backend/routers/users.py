@@ -29,6 +29,20 @@ class UserEdit(BaseModel):
     phone:  Optional[str] = None
     reg_no: Optional[str] = None
 
+@router.get("/doctors")
+def list_doctors(user=Security(get_current_user)):
+    """Active doctors, for populating the doctor picker on the New Visit
+    form. Any logged-in staff member can see this list (they need it to
+    log a visit) — it's not a superadmin-only endpoint like GET /users/."""
+    conn = get_conn()
+    cur  = conn.cursor()
+    cur.execute(
+        "SELECT id, name, reg_no FROM users WHERE role = 'doctor' AND is_active = TRUE ORDER BY name"
+    )
+    rows = cur.fetchall()
+    cur.close(); conn.close()
+    return rows
+
 @router.get("/me")
 def get_me(user=Security(get_current_user)):
     conn = get_conn()

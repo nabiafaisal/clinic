@@ -41,6 +41,21 @@ function splitMobile(mobile_no) {
   return { code: '+92', number: mobile_no };
 }
 
+// Defined OUTSIDE the page component on purpose — a component declared
+// inside a render function is re-created (a "new" component type) on every
+// keystroke, which makes React unmount and remount the underlying <input>
+// each time. That's what was kicking the cursor out of the field while
+// typing. Living out here, it's a stable component and the input keeps
+// its focus/cursor normally.
+function Field({ label, value, onChange, type = 'text' }) {
+  return (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <input className="form-input" type={type} value={value} onChange={e => onChange(e.target.value)} />
+    </div>
+  );
+}
+
 export default function EditPatient() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -134,13 +149,6 @@ export default function EditPatient() {
   if (loading) return <div className="loading-center"><Loader2 size={24} className="spin" /></div>;
   if (!form) return null;
 
-  const F = ({ label, field, type = 'text' }) => (
-    <div className="form-group">
-      <label className="form-label">{label}</label>
-      <input className="form-input" type={type} value={form[field]} onChange={e => set(field, e.target.value)} />
-    </div>
-  );
-
   return (
     <div>
       <div className="page-header">
@@ -160,8 +168,8 @@ export default function EditPatient() {
         <div className="section-card">
           <div className="section-label">Basic Information</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <F label="Full Name *" field="name" />
-            <F label="Father / Husband Name" field="fh_name" />
+            <Field label="Full Name *" value={form.name} onChange={v => set('name', v)} />
+            <Field label="Father / Husband Name" value={form.fh_name} onChange={v => set('fh_name', v)} />
             <div className="form-group">
               <label className="form-label">CNIC #</label>
               <input
@@ -225,8 +233,8 @@ export default function EditPatient() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <F label="City" field="city" />
-              <F label="Country" field="country" />
+              <Field label="City" value={form.city} onChange={v => set('city', v)} />
+              <Field label="Country" value={form.country} onChange={v => set('country', v)} />
             </div>
             <div className="form-group">
               <label className="form-label">
@@ -255,8 +263,8 @@ export default function EditPatient() {
                 </label>
               </div>
             )}
-            <F label="Date of First Visit" field="date_of_first_visit" type="date" />
-            <F label="Known Patient Of" field="know_patient_of" />
+            <Field label="Date of First Visit" value={form.date_of_first_visit} onChange={v => set('date_of_first_visit', v)} type="date" />
+            <Field label="Known Patient Of" value={form.know_patient_of} onChange={v => set('know_patient_of', v)} />
           </div>
         </div>
 
@@ -275,9 +283,9 @@ export default function EditPatient() {
               <label className="form-label">Family History</label>
               <textarea className="form-input" rows={3} value={form.family_history} onChange={e => set('family_history', e.target.value)} />
             </div>
-            <F label="Temperament" field="temperament" />
-            <F label="First Prescription" field="first_subscription" />
-            <F label="Latest Prescription" field="latest_prescription" />
+            <Field label="Temperament" value={form.temperament} onChange={v => set('temperament', v)} />
+            <Field label="First Prescription" value={form.first_subscription} onChange={v => set('first_subscription', v)} />
+            <Field label="Latest Prescription" value={form.latest_prescription} onChange={v => set('latest_prescription', v)} />
             <div className="form-group">
               <label className="form-label">Symptoms (most recent visit)</label>
               <textarea
